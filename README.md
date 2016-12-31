@@ -1,2 +1,2 @@
 # nmt
-neural machine translation project
+this is gonna be a neural machine translation project. english <=> japanese. 
