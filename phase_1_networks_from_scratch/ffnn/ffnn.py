@@ -56,7 +56,7 @@ class ffnn(object):
         self.W2 += self.learning_rate * np.dot(h.T, dW2)
         self.W1 += self.learning_rate * np.dot(X.T, dW1)
 
-        return loss
+        return loss, y_hat
                                                
 
 # some test data of dim 3
@@ -73,6 +73,6 @@ y = np.array([[0],
 nn = ffnn(0.9, 3)
 
 for i in range(100000):
-    l = nn.train_step(X, y)
+    l, y_hat = nn.train_step(X, y)
     if i % 10000 == 0:
-        print str(np.mean(np.abs(l)))
+        print str(np.mean(np.abs(l))), y_hat
