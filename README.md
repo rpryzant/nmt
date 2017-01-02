@@ -15,3 +15,4 @@ this is gonna be a neural machine translation project. english <=> japanese.
 - https://github.com/buriburisuri/ByteNet
 - https://github.com/paarthneekhara/byteNet-tensorflow
 - *https://github.com/giancds/tsf_nmt/tree/master/tsf_nmt*
+- https://github.com/lmthang/nlm
