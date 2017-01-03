@@ -27,7 +27,7 @@ class ffnn(object):
     def sigmoid_derivative(self, x):
         return x * (1 - x)
 
-    # absolute loss
+    # logistic  loss
     def loss(self, y_hat, y):
        return y - y_hat
 
