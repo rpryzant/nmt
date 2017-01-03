@@ -15,10 +15,11 @@ VOCABULARY_SIZE = 8000 # from generate_data
 
 class RNN(object):
     
-    def __init__(self, input_dim, hidden_dim=100, bptt_clip=4):
+    def __init__(self, input_dim, hidden_dim=100, bptt_clip=4, learning_rate=0.005):
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.bptt_clip = bptt_clip
+        self.learning_rate = learning_rate
 
         # initialize weights on uniform [-1/sqrt(input), 1/sqrt(input)] 
         #  a la http://jmlr.org/proceedings/papers/v9/glorot10a/glorot10a.pdf
@@ -94,6 +95,15 @@ class RNN(object):
         return dU, dV, dW
 
 
+    def train_step(self, x, y):
+        """ performs one step of sgd """
+        dU, dV, dW = self.backward_pass(x, y)
+        
+        self.U -= self.learning_rate * dU
+        self.V -= self.learning_rate * dV
+        self.W -= self.learning_rate * dW
+
+
     def cumulative_cross_entropy_loss(self, X, Y):
         """ cross entropy loss across a whole dataset
               L(Y, O) = -(1/N) sum y_n log o_n
@@ -131,3 +141,13 @@ print "\t Observed loss: ", rnn.cumulative_cross_entropy_loss(X[:500], Y[:500])
 #     = log |V|
 print "\t Expected loss: ", np.log(VOCABULARY_SIZE)
 
+
+
+X_train = X[:100]
+Y_train = Y[:100]
+for epoch in range(10):
+    loss = rnn.cumulative_cross_entropy_loss(X_train, Y_train)
+    print 'epoch %s loss %s' % (epoch, loss)
+
+    for i in range(len(Y_train)):
+        rnn.train_step(X_train[i], Y_train[i])
