@@ -63,7 +63,11 @@ class RNN(object):
 
 
     def backward_pass(self, x, y):
-        """ backpropagation through time (bptt) """
+        """ backpropagation through time (bptt) 
+        
+            the gradients here can get messy, but in general, it's easy to remember one simple rule:
+             the gradient at a node in a computation graph is (local gradient) * (gradient coming down from above)
+        """
         T = len(y)
         dU = np.zeros(self.U.shape)
         dV = np.zeros(self.V.shape)
