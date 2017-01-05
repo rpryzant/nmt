@@ -12,7 +12,7 @@ import sys
 import tensorflow as tf
 import numpy as np
 import sys
-
+from tqdm import tqdm 
 import random
 
 
@@ -78,6 +78,8 @@ class RNN(object):
 
     # train on batch of complete sentances
     def train_on_batch(self, x, y):
+        if len(x[0]) == 0:
+            return
         for window in range(len(x[0])):
             _, loss = self._session.run([self._train_step, self._loss],
                               feed_dict={
@@ -128,16 +130,18 @@ X_train = [[x[i:i+BACKPROP_CLIP] for i in range(len(x) - BACKPROP_CLIP + 1)] for
 Y_train = Y[:1000]
 Y_train = [[y[i:i+BACKPROP_CLIP] for i in range(len(y) - BACKPROP_CLIP + 1)] for y in Y_train]
 
-print X_train[0]
 
-for i in range(0, len(X_train) - BATCH_SIZE)[::BATCH_SIZE]:
-    x_batch = X_train[i:i+BATCH_SIZE]
-    y_batch = Y_train[i:i+BATCH_SIZE]
+for epoch in range(1000):
+    epoch_loss = 0.0
+    for i in tqdm(range(0, len(X_train) - BATCH_SIZE)[::BATCH_SIZE]):
+        x_batch = X_train[i:i+BATCH_SIZE]
+        y_batch = Y_train[i:i+BATCH_SIZE]
+        if any(x == [] for x in x_batch):  # sometimes the parser makes a boo boo
+            continue
+        loss = rnn.train_on_batch(x_batch, y_batch)
 
-    loss = rnn.train_on_batch(x_batch, y_batch)
-
-    if i % 100 == 0:
-        print loss
+        epoch_loss += loss
+    print '======== epoch %d. cumulative loss: %d' % (epoch, epoch_loss)
 
 
 
