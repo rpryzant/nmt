@@ -11,6 +11,8 @@ I'd like to make this model as close as possible to that in rnn.numpy.py:
 import sys
 import tensorflow as tf
 import numpy as np
+import sys
+
 
 VOCABULARY_SIZE = 8000 # from generate_data.py
 
@@ -23,21 +25,23 @@ class RNN(object):
         self.learning_rate = learning_rate
 
         # placeholders for a batch's worth of X and Y. each is the length of our bptt limit
-        input = tf.placeholder(tf.int32, shape=[None, self.bptt_clip], name="input") # or max seq len
-        label = tf.placeholder(tf.int32, shape=[None, self.input_dim], name="label")
-        batch_size = tf.shape(input)[0]
+        input_placeholder = tf.placeholder(tf.int32, shape=[None, self.bptt_clip], name="input") # or max seq len
+        label_placeholder = tf.placeholder(tf.int32, shape=[None, self.input_dim], name="label")
+
+        batch_size = tf.shape(input_placeholder)[0]
+
         input_lim = np.sqrt(1.0 / self.input_dim)
         hidden_lim = np.sqrt(1.0 / self.hidden_dim)
 
         # ==== layer 0: embedding
         U = tf.Variable(tf.random_uniform([self.input_dim, self.hidden_dim], -input_lim, input_lim))
-        input = tf.nn.embedding_lookup(U, input)
+        input = tf.nn.embedding_lookup(U, input_placeholder)
         input = tf.unstack(input, num=self.bptt_clip, axis=1)  # unroll examples into shortened list of tensors for bp truncation
 
         # ==== layer 1: rnn cell
         rnn_cell = tf.nn.rnn_cell.BasicRNNCell(self.hidden_dim, activation=tf.tanh)
-        self.initial_state = tf.zeros([batch_size, rnn_cell.state_size])  # initialize hidden state with 0
-        outputs, state = tf.nn.rnn(rnn_cell, input, initial_state=self.initial_state)
+        initial_state = tf.zeros([batch_size, rnn_cell.state_size])  # initialize hidden state with 0
+        outputs, state = tf.nn.rnn(rnn_cell, input, initial_state=initial_state)
 
         # ==== layer 2: fc on top (no bias because meh)
         V = tf.Variable(tf.random_uniform([self.hidden_dim, self.input_dim], -hidden_lim, hidden_lim))
@@ -45,12 +49,68 @@ class RNN(object):
         logits = tf.add(tf.matmul(state, V), V_b)  # predictions before softmax
 
         # training
-        loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits, label))
+        loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits, label_placeholder))
         optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.learning_rate)
         train_step = optimizer.minimize(loss)
 
-#        x = tf.one_hot(inputs, VOCABULARY_SIZE)     # transform x into 1-hot vector
-#        x = tf.unpack(x, axis=1)                    # break x into a list of sequential inputs
+        # session and variable initialization
+        sess = tf.Session()
+        sess.run(tf.global_variables_initializer())
+
+        self._input = input_placeholder
+        self._label = label_placeholder
+        self._rnn_cell = rnn_cell
+        self._initial_state = initial_state
+        self._state = state
+        self._logits = logits
+        self._loss = loss
+        self._train_step = train_step
+        self._session = sess
+
+    def train_on_batch(self, x, y):
+        self._session.run([self._train_step, self._loss],
+                          feed_dict={
+                              self._input: x,
+                              self._label: y
+                          })
+
+    @property
+    def input(self):
+        return self._input
+
+    @property
+    def initial_state(self):
+        return self._initial_state
+
+    @property
+    def final_state(self):
+        return self._state
+
+    @property
+    def loss(self):
+        return self._loss
+
+    @property
+    def train_step(self):
+        return self._train_step
+
+    @property
+    def session(self):
+        return self._session
+
+    
         
         
 rnn = RNN(VOCABULARY_SIZE)
+
+X, Y = eval(open(sys.argv[1]).read())
+
+print X[0]
+print Y[0]
+
+
+
+
+
+
+
