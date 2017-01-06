@@ -52,7 +52,6 @@ class RNN(object):
         V = tf.Variable(tf.random_uniform([self.hidden_dim, self.input_dim], -hidden_lim, hidden_lim))
         V_b = tf.Variable(tf.random_normal([self.input_dim]))
         # get pre-softmax predictions
-        # the scan() is to multiply each batch by V individually
         logits = tf.matmul(output2, V) + V_b
 
 
