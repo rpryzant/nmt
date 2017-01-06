@@ -1,192 +1,124 @@
 """
-Implementing an lstm with tensorflow
-
-
-I'd like to make this model as close as possible to that in lstm.numpy.py:
-   -2 layers: embedding, recursive
-   -tanh on the hidden layer, softmax on predictions
-   -initialize weights with random uniform on [-1/sqrt(input), 1/sqrt(input)]  
-
-***NOTE***
-This program is pretty much identical to ../rnn/rnn_tf.py with two big exceptions:
- 1) BasicRNNCell has been swaped out with BasicLSTMCell. Easy peasy!
- 2) I'm using tf.nn.dynamic_rnn in lieu of tf.nn.rnn to unroll the graph. tf.nn.dynamic_rnn
-     uses a while loop, and keeps unrolling as long as you have more timesteps in your example. 
-     tf.nn.rnn, on the other hand, has to be unrolled by a set number of steps (thereby 
-     clipping backprop). The reason I'm doing this here is
-     (1) the LSTM can propagate gradients further backwards, and (2) because of #1, the lstm can capture
-     longer-range dependancies (i.e. how the 1st word in a sentance can effect the 20th). So 
-     lstm's can actually handle entire sentances. Because this, I'm not breaking each example
-     sentance into a sliding window of words either. just feeding the whole thing in.
-
+My tf lstm had some weird behavior at first (losses bouncing around regaurdless of learning rate)
+ so I'm going to spend some time stripping my implementation down until I get something that works.
 """
-
-import sys
-import tensorflow as tf
 import numpy as np
+import tensorflow as tf
+from tqdm import tqdm
 import sys
-from tqdm import tqdm 
-import random
 
-
-MAX_LENGTH = 250
-VOCABULARY_SIZE = 8001 # 8000 from generate_data.py, and 1 for padding
 
 class LSTM(object):
-    def __init__(self, input_dim, hidden_dim=100, backprop_clip=4, learning_rate=0.001):
-        self.input_dim = input_dim
-        self.hidden_dim = hidden_dim
-        self.bptt_clip = backprop_clip
-        self.learning_rate = learning_rate
+    
+    def __init__(self, num_classes, max_seq_len, learning_rate, hidden_units):
+        # placeholders for data
+        input_placeholder = tf.placeholder(tf.int32, shape=[None, max_seq_len])
+        target_placeholder = tf.placeholder(tf.int32, shape=[None, max_seq_len])
+        length_placeholder = tf.placeholder(tf.int32, shape=[None])
 
-        # placeholders for a batch's worth of X and Y. each is the length of our bptt limit
-        input_placeholder = tf.placeholder(tf.int32, shape=[None, MAX_LENGTH], name="input") # or max seq len
-        label_placeholder = tf.placeholder(tf.int32, shape=[None, MAX_LENGTH], name="label")
-        input_lengths = tf.placeholder(tf.int32, shape=[None], name="lengths")
-
-        batch_size = tf.shape(input_placeholder)[0]
-
-        input_lim = np.sqrt(1.0 / self.input_dim)
-        hidden_lim = np.sqrt(1.0 / self.hidden_dim)
-
-        # ==== layer 0: embedding
-        U = tf.Variable(tf.random_uniform([self.input_dim, self.hidden_dim], -input_lim, input_lim))
+        # retrieve and unpack input embeddings
+        U = tf.get_variable(
+            name="U",
+            initializer=tf.random_normal_initializer(),
+            shape=[num_classes, hidden_units])
         input = tf.nn.embedding_lookup(U, input_placeholder)
-        input = tf.unpack(input, axis=1)  # unroll examples into list of tensors 
 
-        # ==== layer 1: rnn cell
-        lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(self.hidden_dim, activation=tf.tanh)
-        initial_state = lstm_cell.zero_state(batch_size, tf.float32)  # initialize hidden state with 0
 
-        outputs, state = tf.nn.rnn(
-            lstm_cell, 
-            input, 
-            initial_state=initial_state, 
-            sequence_length=input_lengths)
+        cell = tf.nn.rnn_cell.BasicLSTMCell(num_units=hidden_units)
+        outputs, state = tf.nn.dynamic_rnn(
+            cell=cell,
+            inputs=input,
+            sequence_length=length_placeholder,
+            initial_state=cell.zero_state(B, tf.float32),
+            dtype=tf.float32)
 
-        outputs = tf.transpose(tf.pack(outputs), [1, 0, 2]) # pack outputs into a tensor of shape [batch size, max timesteps, hidden dim]
+        # output layer
+        V = tf.get_variable(
+            name='V',
+            initializer=tf.random_normal_initializer(),
+            shape=[hidden_units, num_classes])
 
-        # ==== layer 2: fc on top (no bias because meh)
-        V = tf.Variable(tf.random_uniform([self.hidden_dim, self.input_dim], -hidden_lim, hidden_lim))
-        V_b = tf.Variable(tf.random_normal([self.input_dim]))
-        # get pre-softmax predictions
-        rnn_outputs_flat = tf.reshape(outputs, [-1, self.hidden_dim])
-        logits = tf.batch_matmul(rnn_outputs_flat, V) + V_b
-        
-        labels_flat = tf.reshape(label_placeholder, [-1])
+        # smush together all the batches so that we can calculate loss in one step
+        outputs = tf.reshape(outputs, [-1, hidden_units])    
+        logits = tf.matmul(outputs, V)
 
-        losses = tf.nn.sparse_softmax_cross_entropy_with_logits(logits, labels_flat)
-        # mask losses
-        mask = tf.sign(tf.to_float(labels_flat))  # this is why we bumped up all the classes
-        masked_losses = mask * losses
-        # bring back to [batches, max timesteps]
-        masked_losses = tf.reshape(masked_losses, tf.shape(input_placeholder))
-        # calc mean loss
-        mean_loss = tf.reduce_sum(masked_losses, reduction_indices=1) / tf.to_float(input_lengths)
-        mean_loss = tf.reduce_mean(mean_loss)
+        # loss
+        target_flat = tf.reshape(target_placeholder, [-1])  # flatten out batches for same reason as above
+        losses = tf.nn.sparse_softmax_cross_entropy_with_logits(logits, target_flat)
 
-        optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.learning_rate)
-        train_step = optimizer.minimize(mean_loss)
+        # mask out padded targets from loss
+        mask = tf.sign(tf.to_float(target_flat)) 
+        losses = mask * losses
 
-        # session and variable initialization
+        # recover batches and compute mean loss per batch 
+        losses = tf.reshape(losses, tf.shape(target_placeholder))
+        loss_per_batch = tf.reduce_sum(losses, reduction_indices=1) / tf.to_float(length_placeholder)
+        mean_batch_loss = tf.reduce_mean(loss_per_batch)
+
+        # training
+        optimizer = tf.train.GradientDescentOptimizer(learning_rate=0.0003)
+        train_step = optimizer.minimize(mean_batch_loss)
+
         sess = tf.Session()
         sess.run(tf.global_variables_initializer())
 
         self._input = input_placeholder
-        self._label = label_placeholder
-        self._lstm_cell = lstm_cell
-        self._initial_state = initial_state
-        self._state = state
-        self._logits = logits
-        self._loss = mean_loss
+        self._target = target_placeholder
+        self._length = length_placeholder
+        self._sess = sess
         self._train_step = train_step
-        self._session = sess
-        self._lengths = input_lengths
+        self._loss = mean_batch_loss
 
-    # train on batch of complete sentances
-    def train_on_batch(self, x, y):
-        for batch_i in range(len(x)):
-            # increment everything by one so that 0 gets its own reserved padding id
-            for j in range(len(x[batch_i])):
-                x[batch_i][j] += 1
-                y[batch_i][j] += 1
-            # 0-pad
-            l = len(x[batch_i])
-            while l < MAX_LENGTH:
-                x[batch_i].append(0)
-                y[batch_i].append(0)
-                l += 1
-        if len(x[0]) == 0:
-            return
-
-        lengths = lambda l: [len(y) for y in l]
-
-        _, loss = self._session.run([self._train_step, self._loss],
-                          feed_dict={
-                             self._input: x,
-                             self._label: y,
-                             self._lengths: lengths(x) # true sentance lengths
-                          })
+    def train_on_batch(self, x_batch, y_batch, l_batch):
+        _, loss = self._sess.run([self._train_step, self._loss],
+                           feed_dict={
+                               self._input: x_batch,
+                               self._target: y_batch,
+                               self._length: l_batch
+                           })
         return loss
 
-    @property
-    def input(self):
-        return self._input
 
-    @property
-    def initial_state(self):
-        return self._initial_state
 
-    @property
-    def final_state(self):
-        return self._state
 
-    @property
-    def loss(self):
-        return self._loss
 
-    @property
-    def train_step(self):
-        return self._train_step
 
-    @property
-    def session(self):
-        return self._session
+MAX_SEQ_LEN = 200
+BATCH_SIZE = 2
+VOCAB_SIZE = 8001 # 1 extra for padding
 
-    
-        
-        
+def prepare(x, y):
+    """reserves 0 for padding id, pads the data, and records length of each example
+    """
+    l = []
+    for i in range(len(x)):
+        x[i] = [k+1 for k in x[i]]
+        y[i] = [k+1 for k in y[i]]
+        l.append(len(x[i]))
 
-BATCH_SIZE = 1
-BACKPROP_CLIP = 5
+        while len(x[i]) < MAX_SEQ_LEN:
+            x[i].append(0)
+            y[i].append(0)
 
-lstm = LSTM(VOCABULARY_SIZE, backprop_clip=BACKPROP_CLIP)
+    return x, y, l
+
 
 
 X, Y = eval(open(sys.argv[1]).read())
+X_train, Y_train, L_train = prepare(X[:100], Y[:100])
 
-X_train = X[:1000]
-# no need to break up into sliding window since we're doing variable-length inputs
-#X_train = [[x[i:i+BACKPROP_CLIP] for i in range(len(x) - BACKPROP_CLIP + 1)] for x in X_train]
-
-Y_train = Y[:1000]
-#Y_train = [[y[i:i+BACKPROP_CLIP] for i in range(len(y) - BACKPROP_CLIP + 1)] for y in Y_train]
-
+lstm = LSTM(VOCAB_SIZE, MAX_SEQ_LEN, 0.0003, 128)
 
 for epoch in range(1000):
-    epoch_loss = 0.0
-    for i in tqdm(range(0, len(X_train) - BATCH_SIZE)[::BATCH_SIZE]):
+    epoch_loss = 0
+    for batch_i in tqdm(range(0, len(X_train) - BATCH_SIZE)[::BATCH_SIZE]):
         x_batch = X_train[i:i+BATCH_SIZE]
         y_batch = Y_train[i:i+BATCH_SIZE]
-        if any(x == [] for x in x_batch):  # sometimes the parser makes a boo boo
-            continue
-        loss = lstm.train_on_batch(x_batch, y_batch)
+        l_batch = L_train[i:i+BATCH_SIZE]
 
-        epoch_loss += loss
-    print '======== epoch %d. cumulative loss: %d' % (epoch, epoch_loss)
+        epoch_loss += lstm.train_on_batch(x_batch, y_batch, l_batch)
 
+    print epoch_loss
+                           
 
-
-
-
-
+                           
