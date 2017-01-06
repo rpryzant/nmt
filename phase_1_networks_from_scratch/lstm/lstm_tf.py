@@ -1,9 +1,4 @@
 """
-TODO
-  - documentation
-  - step through things, verify thats its working
-
-
 Implementing an lstm with tensorflow
 
 
@@ -38,7 +33,7 @@ MAX_LENGTH = 250
 VOCABULARY_SIZE = 8001 # 8000 from generate_data.py, and 1 for padding
 
 class LSTM(object):
-    def __init__(self, input_dim, hidden_dim=100, backprop_clip=4, learning_rate=0.005):
+    def __init__(self, input_dim, hidden_dim=100, backprop_clip=4, learning_rate=0.001):
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.bptt_clip = backprop_clip
@@ -47,11 +42,9 @@ class LSTM(object):
         # placeholders for a batch's worth of X and Y. each is the length of our bptt limit
         input_placeholder = tf.placeholder(tf.int32, shape=[None, MAX_LENGTH], name="input") # or max seq len
         label_placeholder = tf.placeholder(tf.int32, shape=[None, MAX_LENGTH], name="label")
-
         input_lengths = tf.placeholder(tf.int32, shape=[None], name="lengths")
 
         batch_size = tf.shape(input_placeholder)[0]
-        example_length = tf.shape(input_placeholder)[1]
 
         input_lim = np.sqrt(1.0 / self.input_dim)
         hidden_lim = np.sqrt(1.0 / self.hidden_dim)
@@ -59,11 +52,12 @@ class LSTM(object):
         # ==== layer 0: embedding
         U = tf.Variable(tf.random_uniform([self.input_dim, self.hidden_dim], -input_lim, input_lim))
         input = tf.nn.embedding_lookup(U, input_placeholder)
-        input = tf.unpack(input, axis=1)  # unroll examples into clipped list of tensors for bp truncation
+        input = tf.unpack(input, axis=1)  # unroll examples into list of tensors 
 
         # ==== layer 1: rnn cell
         lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(self.hidden_dim, activation=tf.tanh)
         initial_state = lstm_cell.zero_state(batch_size, tf.float32)  # initialize hidden state with 0
+
         outputs, state = tf.nn.rnn(
             lstm_cell, 
             input, 
