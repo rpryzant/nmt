@@ -1,4 +1,9 @@
 """
+TODO
+  - documentation
+  - step through things, verify thats its working
+
+
 Implementing an lstm with tensorflow
 
 
