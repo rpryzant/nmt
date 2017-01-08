@@ -6,14 +6,14 @@ import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 import sys
-
+from data_generator import DataGenerator
 
 class LSTM(object):
     
     def __init__(self, num_classes, max_seq_len, learning_rate, hidden_units):
         # placeholders for data
-        input_placeholder = tf.placeholder(tf.int32, shape=[None, max_seq_len])
-        target_placeholder = tf.placeholder(tf.int32, shape=[None, max_seq_len])
+        input_placeholder = tf.placeholder(tf.int32, shape=[None, None])
+        target_placeholder = tf.placeholder(tf.int32, shape=[None, None])
         length_placeholder = tf.placeholder(tf.int32, shape=[None])
 
         # retrieve and unpack input embeddings
@@ -29,7 +29,7 @@ class LSTM(object):
             cell=cell,
             inputs=input,
             sequence_length=length_placeholder,
-#            initial_state=cell.zero_state(B, tf.float32),
+#            initial_state=cell.zero_state(batch_size, tf.float32),
             dtype=tf.float32)
 
         # output layer
@@ -87,35 +87,16 @@ MAX_SEQ_LEN = 200
 BATCH_SIZE = 2
 VOCAB_SIZE = 8001 # 1 extra for padding
 
-def prepare(x, y):
-    """reserves 0 for padding id, pads the data, and records length of each example
-    """
-    l = []
-    for i in range(len(x)):
-        x[i] = [k+1 for k in x[i]]
-        y[i] = [k+1 for k in y[i]]
-        l.append(len(x[i]))
+dg = DataGenerator(sys.argv[1], 4) # batch size of 4
 
-        while len(x[i]) < MAX_SEQ_LEN:
-            x[i].append(0)
-            y[i].append(0)
+training_data = [dg.next_batch() for _ in range(100)]  # pull out 100 batches
 
-    return x, y, l
-
-
-
-X, Y = eval(open(sys.argv[1]).read())
-X_train, Y_train, L_train = prepare(X[:100], Y[:100])
 
 lstm = LSTM(VOCAB_SIZE, MAX_SEQ_LEN, 0.0003, 128)
 
 for epoch in range(1000):
     epoch_loss = 0
-    for i in tqdm(range(0, len(X_train) - BATCH_SIZE)[::BATCH_SIZE]):
-        x_batch = X_train[i:i+BATCH_SIZE]
-        y_batch = Y_train[i:i+BATCH_SIZE]
-        l_batch = L_train[i:i+BATCH_SIZE]
-
+    for x_batch, y_batch, l_batch in tqdm(training_data):
         epoch_loss += lstm.train_on_batch(x_batch, y_batch, l_batch)
 
     print epoch_loss

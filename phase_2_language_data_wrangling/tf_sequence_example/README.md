@@ -1,6 +1,6 @@
 ### Introduction
 
-This project is going to be making use of sequential data. `tf.SequenceExample` is a protobuf definition that's specifically designed for sequential inputs. I'm going to be using this in the main project, so it's good to learn it by playing with it in a minimal sandbox.
+This project is going to be making use of sequential data. `tf.SequenceExample` is a protobuf definition that's specifically designed for sequential inputs. I'm going to be using this in the main project, so I'm going to familiarize myself with it by playing around in this minimal sandbox.
 
 ### Benefits of tf.SequenceExample
 
@@ -12,4 +12,4 @@ This project is going to be making use of sequential data. `tf.SequenceExample` 
 
 ### This project
 
-This project is pretty simple. I'm taking the model and data from phase 1 -- LSTM. Trying to do the exact same thing except with `tf.SequenceExample`.
+This project is pretty simple. I'm taking the model and data from phase 1 -- LSTM. Trying to do the exact same thing except using `tf.SequenceExample` instead of feeding in raw numpy matrices.

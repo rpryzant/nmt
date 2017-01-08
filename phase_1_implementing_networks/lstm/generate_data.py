@@ -27,8 +27,8 @@ freqs = nltk.FreqDist(itertools.chain(*tokenized_sentences))
 # get most common words: [(word, freq)] sorted by freq
 vocabulary = freqs.most_common(VOCAB_SIZE - 1)
 
-# build word to index mapping
-word_to_index = {w: i for i, (w, f) in enumerate(vocabulary)}
+# build word to index mapping, and +1 to all id's to reserve 0 for padding
+word_to_index = {w: i+1 for i, (w, f) in enumerate(vocabulary)}
 
 # replace words not in vocab with unk
 for i, s in enumerate(tokenized_sentences):
