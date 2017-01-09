@@ -29,7 +29,7 @@ class LSTM(object):
             cell=cell,
             inputs=input,
             sequence_length=length_placeholder,
-#            initial_state=cell.zero_state(batch_size, tf.float32),
+#            initial_state=cell.zero_state(batch_size, tf.float32),     # commented out because I want to make the model independant of batch size
             dtype=tf.float32)
 
         # output layer

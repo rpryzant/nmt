@@ -1,6 +1,5 @@
 """
-This file takes in parsed data, and writes one or more TFRecord files.
-
+This script takes in parsed data, and writes one or more TFRecord files.
 
 """
 import tensorflow as tf
