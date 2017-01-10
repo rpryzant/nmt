@@ -33,6 +33,8 @@ This list isn't exaustive, but it's a start
   * soln: run language model over each movie/show's corpus. if average sentance quality is below some threshold, throw it out
 * En/Jp subtitle mismatch. Sometimes the srt files don't have the same number of entries, and entries don't correspond to the same times. 
   * soln: sentance alignment model. run encoder over en/jp srt files. pair up nearby sentances with similar thought vectors
+* romanji transliterations
+  * soln: throw out
 
   
 
