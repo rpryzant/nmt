@@ -5,20 +5,25 @@
 This list isn't exaustive, but it's a start
 
 * http://www.d-addicts.com/forums/page/subtitles?sid=c00e06662e59c449c2b2814b22e7bc90#Japanese
-  * ~5M sentance pairs
-  * relatively high quality fansubs
+  * ~600 dramas, ~5M sentance pairs
+  * fansubs
   * japanese & english subs in different parts of same page
 * http://opus.lingfil.uu.se/OpenSubtitles2016.php
   * 1.4M sentance pairs
   * professional translations, 1-1 en/jp matching (in same file)
 * http://kitsunekko.net/dirlist.php?dir=subtitles%2F, http://kitsunekko.net/dirlist.php?dir=subtitles%2Fjapanese%2F
-
-* http://project-modelino.com/movies.php?site_language=english&learn_language=japanese
+  * ~600 dramas/movies (largeley incomplete), ~3M pairs
+  * fansubs
+  * en/jp lists on different pages
 * http://nihongo-jimaku.blogspot.jp/
+  * ~225 movies (.25M sentances)
+  * jp only, no en
 * http://v2.subscene.com/subtitles/a/japanese.aspx
-* https://subscene.com/browse 
+* https://subscene.com/browse, http://v2.subscene.com/subtitles/a/japanese.aspx
   * seems like v2 of ^^
   * set filter to japanese, then get english for each item by changing url)
+  * ~2000 movies/shows, ~5M sentance pairs
+  * mix of fansubs & professional translations
 
 
 ### Roadblocks
