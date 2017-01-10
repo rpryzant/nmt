@@ -18,7 +18,6 @@ This list isn't exaustive, but it's a start
 * http://nihongo-jimaku.blogspot.jp/
   * ~225 movies (.25M sentances)
   * jp only, no en
-* http://v2.subscene.com/subtitles/a/japanese.aspx
 * https://subscene.com/browse, http://v2.subscene.com/subtitles/a/japanese.aspx
   * seems like v2 of ^^
   * set filter to japanese, then get english for each item by changing url)
