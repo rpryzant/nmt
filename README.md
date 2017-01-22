@@ -16,3 +16,5 @@ this is gonna be a neural machine translation project. english <=> japanese.
 - https://github.com/paarthneekhara/byteNet-tensorflow
 - *https://github.com/giancds/tsf_nmt/tree/master/tsf_nmt*
 - https://github.com/lmthang/nlm
+- https://github.com/dillonalaird/NMTS
+- https://github.com/dillonalaird/Attention
