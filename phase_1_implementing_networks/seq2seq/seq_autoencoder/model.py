@@ -8,8 +8,7 @@ This is a seq2seq model that works like an autoencoder: given a sequence of vect
 https://www.tensorflow.org/tutorials/seq2seq/
 
 TODO: 
-  - REFACTOR INTO CLASS
-  - BETTER DOCUMENTATION
+  - GET RID OF BATCH_SIZE AS PARAMETER TO MODEL: MODEL SHOULD BE BATCH INDEP
   - TRY FEEDING PREVIOUS - REGENERATE SEQUENCE FROM ENCODER HIDDEN STATE
 """
 
