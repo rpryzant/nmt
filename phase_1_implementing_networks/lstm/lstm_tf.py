@@ -39,11 +39,17 @@ class LSTM(object):
             shape=[hidden_units, num_classes])
 
         # smush together all the batches so that we can calculate loss in one step
+        print 'outputs', outputs
         outputs = tf.reshape(outputs, [-1, hidden_units])    
+        print 'outputs flat', outputs
+        print 'v', V
         logits = tf.matmul(outputs, V)
 
         # loss
+        print 't placeholder', target_placeholder
         target_flat = tf.reshape(target_placeholder, [-1])  # flatten out batches for same reason as above
+        print 'logits', logits
+        print 't flat', target_flat
         losses = tf.nn.sparse_softmax_cross_entropy_with_logits(logits, target_flat)
 
         # mask out padded targets from loss
