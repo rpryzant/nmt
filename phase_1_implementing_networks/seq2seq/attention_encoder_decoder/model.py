@@ -29,16 +29,56 @@ import numpy as np
 
 
 
-
+class config:
+    source_n = 80000
+    max_source_len = 25
+    embedding_size = 64
+    hidden_size = 128
+    dropout_rate = 0.5
+    num_layers = 3
 
 class Seq2Seq:
-    def __init__(self):
-        
-        self.source = tf.placeholder(tf.int32, [None, self.max_seq_len])
-        self.target = 
+    def __init__(self, config, batch_size):
+        source_n = config.source_n
+        max_source_len = config.max_source_len
+        embedding_size = config.embedding_size
+        max_source_len = config.max_source_len
+        hidden_size = config.hidden_size
+        dropout_rate = config.dropout_rate
+        num_layers = config.num_layers
 
+
+        source = tf.placeholder(tf.int32, [batch_size, max_source_len], name='source')
 
         # build encoder
         with tf.variable_scope("encoder"):
-            
+            # make all the graph nodes I'll need
+            source_embedding = tf.get_variable("source_embedding",
+                                               shape=[source_n, embedding_size],
+                                               initializer=tf.contrib.layers.xavier_initializer())
+            source_proj_W = tf.get_variable("s_proj_W", 
+                                            shape=[embedding_size, hidden_size],
+                                            initializer=tf.contrib.layers.xavier_initializer())
+            source_proj_b = tf.get_variable("s_proj_b",
+                                            shape=[hidden_size],
+                                            initializer=tf.contrib.layers.xavier_initializer())
+            encoder_cell = tf.nn.rnn_cell.BasicLSTMCell(hidden_size, state_is_tuple=True)
+            encoder_cell = tf.nn.rnn_cell.DropoutWrapper(encoder_cell, output_keep_prob=dropout_rate)
+            encoder = tf.nn.rnn_cell.MultiRNNCell([encoder_cell]*num_layers, state_is_tuple=True)
 
+            # look up embedding
+            source_x = tf.nn.embedding_lookup(source_embedding, source)
+            source_x = tf.unstack(source_x, axis=1)                         # split into a list of embeddings, 1 per word
+            # run encoder over source sentence
+            s = encoder.zero_state(batch_size, tf.float32)
+            for t in range(max_source_len):
+                if t > 0: tf.get_variable_scope().reuse_variables()         # let tf reuse variables
+                x = source_x[t]
+                projection = tf.matmul(x, source_proj_W) + source_proj_b    # project embedding into rnn's space
+                h, s = encoder(projection, s)
+        print h
+
+
+c = config()
+
+test = Seq2Seq(c, 3)
