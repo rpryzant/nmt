@@ -38,22 +38,27 @@ class config:
     num_layers = 3
     target_n = 80000
     max_target_len = 25
+    learning_rate = 0.0003
+
 
 
 class Seq2Seq:
-    def __init__(self, config, batch_size):
-        source_n = config.source_n
-        max_source_len = config.max_source_len
-        embedding_size = config.embedding_size
-        hidden_size = config.hidden_size
-        dropout_rate = config.dropout_rate
-        num_layers = config.num_layers
-        target_n = config.target_n
-        max_target_len = config.max_target_len
+    def __init__(self, config, batch_size, testing=False):
+        source_n          = config.source_n
+        max_source_len    = config.max_source_len
+        embedding_size    = config.embedding_size
+        hidden_size       = config.hidden_size
+        dropout_rate      = config.dropout_rate
+        num_layers        = config.num_layers
+        target_n          = config.target_n
+        max_target_len    = config.max_target_len
+        lr                = config.learning_rate
 
-        source = tf.placeholder(tf.int32, [batch_size, max_source_len], name='source')
-        target = tf.placeholder(tf.int32, [batch_size, max_source_len], name='target')
+        self.testing = testing
 
+        source     = tf.placeholder(tf.int32, [batch_size, max_source_len], name='source')
+        target     = tf.placeholder(tf.int32, [batch_size, max_source_len], name='target')
+        target_len = tf.placeholder(tf.int32, [batch_size], name='target_len')        # for masking loss
 
 
         # build encoder
@@ -85,7 +90,9 @@ class Seq2Seq:
                 h, s = encoder(projection, s)
                 
         # build decoder
-        with tf.variable_scope("encoder"):
+        logits = []
+        probs = []
+        with tf.variable_scope("decoder"):
             target_embedding = tf.get_variable("target_embedding",
                                                shape=[target_n, embedding_size],
                                                initializer=tf.contrib.layers.xavier_initializer())
@@ -115,12 +122,33 @@ class Seq2Seq:
             target_x = tf.unstack(target_x, axis=1)
 
             # decode source by initializing with encoder's final hidden state
-            # TODO
+            for t in range(max_target_len):
+                if t > 0: tf.get_variable_scope().reuse_variables()      # reuse variables after 1st iteration
+                if not self.testing or t == 0: x = target_x[t]           # feed in provided targets while training
 
+                projection = tf.matmul(x, target_proj_W) + target_proj_b # project embedding into rnn space
+                h, s = decoder(projection, s)                            # s is last encoder state when t == 0
+                
+                out_embedding = tf.matmul(h, out_embed_W) + out_embed_b  # project output to target embedding space
+                logit = tf.matmul(out_embedding, out_W) + out_b 
+                logits.append(logit)
+                prob = tf.nn.softmax(logit)
+                probs.append(prob)
+                
+                if self.testing:
+                    x = tf.cast(tf.argmax(prob, 1), tf.int32)
+                    x = tf.nn.embedding_lookup(target_embedding, x)
 
+        logits = logits[:-1]
+        targets = tf.split(1, max_target_len, target)[1:]                # ignore <start> token
+        target_mask = tf.sequence_mask(target_len - 1, max_target_len - 1, dtype=tf.float32)
+        loss_weights = tf.unstack(target_mask, None, 1)                  # 0/1 weighting for variable len tgt seqs
 
+        loss = tf.nn.seq2seq.sequence_loss(logits, targets, loss_weights)
+        output_probs = tf.transpose(tf.pack(probs), [1, 0, 2])
 
-
+        optimizer = tf.train.AdamOptimizer(lr)
+        train_step = optimizer.minimize(loss)
 
 
 c = config()
