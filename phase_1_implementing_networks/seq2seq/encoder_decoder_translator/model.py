@@ -153,4 +153,5 @@ class Seq2Seq:
 
 c = config()
 
+
 test = Seq2Seq(c, 3)
