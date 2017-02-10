@@ -47,42 +47,36 @@ X = [[word_to_index[w] for w in s[:-1]] for s in tokenized_sentences] # exclude 
 Y = [[word_to_index[w] for w in s[1:]] for s in tokenized_sentences] # exclude _START                                                 
 """
 
-START = "<s>"
-END = "</s>"
+START = "_START_"
+END = "_END_"
+UNK = "_UNK_"
+VOCAB_SIZE = 5000
+
 
 class Dataset:
 
     def __init__(self, en_path, alt_path):
-        f = open(en_path, 'rb')
+        self.raw_en = self.treat_source(en_path)
+        print self.raw_en
+
+    def treat_source(self, path):
+        f = open(path, 'rb')
         s = [s.strip().decode('utf-8').lower() for s in f]
+        s = ['%s %s %s' % (START, x, END) for x in s]
 
-        # TODO HERE^^^^
-        # IGNORE WHATS BELOW THIS
+        tok_s = [nltk.word_tokenize(x) for x in s]
+        f = nltk.FreqDist(itertools.chain(*tok_s))
+        vocab = f.most_common(VOCAB_SIZE - 1)
 
+        reverse_index = {w: i+1 for i, (w, f) in enumerate(vocab)}
+        reverse_index[UNK] = 0
 
+        for i, s in enumerate(tok_s):
+            tok_s[i] = [w if w in reverse_index else UNK for w in s]
 
+        return [[reverse_index[w] for w in sent] for sent in tok_s]
 
-        print s
-        s = itertools.chain(nltk.sent_tokenize(nltk.sent_tokenize(text.decode('utf-8').lower())))
-        print s
-        quit()
-
-
-        self.en_path = en_path
-        self.en_s_index, self.en_rev_s_index =  self.__build_sentence_indices(en_path)
-        self.N_en_s = len(self.en_s_index)
-
-        self.alt_path = alt_path
-        self.alt_s_index, self.alt_rev_s_index = self.__build_sentence_indices(alt_path)
-        self.N_alt_s = len(self.alt_s_index)
-
-
-
-
-    def __build_sentence_indices(self, path):
-        index     = { s.strip(): i for i, s in enumerate(open(path).read().splitlines()) }
-        rev_index = { i: s.strip() for i, s in enumerate(open(path).read().splitlines()) }
-        return index, rev_index
+        
 
 
 if __name__ == "__main__":
