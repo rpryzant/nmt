@@ -15,37 +15,8 @@ import sys
 import nltk
 import itertools
 
-"""
 
-input_data = sys.argv[1]
 
-f = open(input_data, 'rb')
-
-# read in data and append sentance boundary tokens                                                                                    
-raw_text = ' '.join(line.strip() for line in f if len(line) > 0)
-sentences = itertools.chain(nltk.sent_tokenize(raw_text.decode('utf-8').lower()))
-sentences = ['%s %s %s' % (SENTENCE_START, s, SENTENCE_END) for s in sentences]
-
-# tokenize into words                                                                                                                 
-tokenized_sentences = [nltk.word_tokenize(s) for s in sentences]
-
-# count word freqs                                                                                                                    
-freqs = nltk.FreqDist(itertools.chain(*tokenized_sentences))
-
-# get most common words: [(word, freq)] sorted by freq                                                                                
-vocabulary = freqs.most_common(VOCAB_SIZE - 1)
-
-# build word to index mapping, and +1 to all id's to reserve 0 for padding                                                            
-word_to_index = {w: i+1 for i, (w, f) in enumerate(vocabulary)}
-
-# replace words not in vocab with unk                                                                                                 
-for i, s in enumerate(tokenized_sentences):
-    tokenized_sentences[i] = [w if w in word_to_index else UNK for w in s]
-
-# create and save datasets                                                                                                            
-X = [[word_to_index[w] for w in s[:-1]] for s in tokenized_sentences] # exclude _END                                                  
-Y = [[word_to_index[w] for w in s[1:]] for s in tokenized_sentences] # exclude _START                                                 
-"""
 
 START = "_START_"
 END = "_END_"
@@ -55,11 +26,20 @@ VOCAB_SIZE = 5000
 
 class Dataset:
 
-    def __init__(self, en_path, alt_path):
-        self.raw_en = self.treat_source(en_path)
-        print self.raw_en
+    def __init__(self, l1_path, l2_path):
+        self.l1_raw, self.l1_dictionary, self.l1_indices = self.parse_source(l1_path)
+        self.l2_raw, self.l2_dictionary, self.l2_indices = self.parse_source(l2_path)
 
-    def treat_source(self, path):
+
+
+    def parse_source(self, path):
+        """ parses a space-seperated corpus into
+              1) a list of constituent sentances with start & end tokens added
+              2) a dictionary mapping the top K most frequent words to their rank indices
+              3) a list of sentances with words converted to their index 
+        
+            note that 0 is a special index reserved for for unknown/out-of-dictionary words
+        """
         f = open(path, 'rb')
         s = [s.strip().decode('utf-8').lower() for s in f]
         s = ['%s %s %s' % (START, x, END) for x in s]
@@ -74,9 +54,11 @@ class Dataset:
         for i, s in enumerate(tok_s):
             tok_s[i] = [w if w in reverse_index else UNK for w in s]
 
-        return [[reverse_index[w] for w in sent] for sent in tok_s]
+        treated_corpus = [[reverse_index[w] for w in sent] for sent in tok_s]
 
-        
+        return s, reverse_index, treated_corpus
+
+
 
 
 if __name__ == "__main__":
