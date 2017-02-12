@@ -7,9 +7,10 @@ Class for managing en-alt parallel corpora and performing all
   (so western-centric sigh)
 
 === USAGE
+= from plaintext corpus
 python dataset.py data/train.en data/train.vi  
-
-
+= from preprocessed corpus
+python dataset.py ex_parsed_data/ en vi
 """
 import sys
 import nltk
@@ -27,8 +28,30 @@ VOCAB_SIZE = 5000
 class Dataset:
 
     def __init__(self, l1_path, l2_path):
+        """ constructor for raw corpus data
+        """
         self.l1_raw, self.l1_dictionary, self.l1_indices = self.parse_source(l1_path)
         self.l2_raw, self.l2_dictionary, self.l2_indices = self.parse_source(l2_path)
+
+
+    def __init__(self, path, l1_name, l2_name):
+        """ constructor for pre-processed corpus data
+        """
+        self.l1_raw, self.l1_dictionary, self.l1_indices = self.read(path, l1_name)
+        self.l2_raw, self.l2_dictionary, self.l2_indices = self.read(path, l2_name)
+        print self.l2_indices
+
+
+    def read(self, path, language):
+        """ reads sentances, dictionary, and sentence indices from preprocessed corpus
+        """
+        base = '%s/%s.' % (path, language)
+        raw = np.load(base + 'dictionary.npy')
+        dictionary = np.load(base + 'dictionary.npy')
+        dictionary = dict([(x[0], int(x[1])) for x in dictionary ])
+        indices = np.load(base + 'indices.npy')
+
+        return raw, dictionary, indices
 
 
     def write(self, path, l1_name, l2_name):
@@ -47,6 +70,9 @@ class Dataset:
         np.save(l2_base + 'raw', np.array(self.l2_raw))
         np.save(l2_base + 'dictionary', np.array(self.l2_dictionary.items()))
         np.save(l2_base + 'indices', np.array(self.l2_indices))
+
+
+
 
 
 
@@ -80,6 +106,7 @@ class Dataset:
 
 
 if __name__ == "__main__":
-    d = Dataset(sys.argv[1], sys.argv[2])
+#    d = Dataset(sys.argv[1], sys.argv[2])
+#    d.write('./test_out', 'en', 'vi')
 
-    d.write('./test_out', 'en', 'vi')
+    d = Dataset(sys.argv[1], sys.argv[2], sys.argv[3])
