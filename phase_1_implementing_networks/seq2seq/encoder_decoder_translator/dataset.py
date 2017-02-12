@@ -7,14 +7,14 @@ Class for managing en-alt parallel corpora and performing all
   (so western-centric sigh)
 
 === USAGE
-python dataset.py data/train.en data/train.alt  
+python dataset.py data/train.en data/train.vi  
 
 
 """
 import sys
 import nltk
 import itertools
-
+import numpy as np
 
 
 
@@ -29,6 +29,24 @@ class Dataset:
     def __init__(self, l1_path, l2_path):
         self.l1_raw, self.l1_dictionary, self.l1_indices = self.parse_source(l1_path)
         self.l2_raw, self.l2_dictionary, self.l2_indices = self.parse_source(l2_path)
+
+
+    def write(self, path, l1_name, l2_name):
+        """ write (1) raw sentances, (2) vocab dictionary, and (3) indexed sentances
+            for both languages to the location specified by path
+
+            The "lX_name" should be the name of each language, e.g. "en" and "vi".
+             we need this param because datasets are language-invarient 
+        """
+        l1_base = '%s/%s.' % (path, l1_name)
+        np.save(l1_base + 'raw', np.array(self.l1_raw))
+        np.save(l1_base + 'dictionary', np.array(self.l1_dictionary.items()))
+        np.save(l1_base + 'indices', np.array(self.l1_indices))
+
+        l2_base = '%s/%s.' % (path, l2_name)
+        np.save(l2_base + 'raw', np.array(self.l2_raw))
+        np.save(l2_base + 'dictionary', np.array(self.l2_dictionary.items()))
+        np.save(l2_base + 'indices', np.array(self.l2_indices))
 
 
 
@@ -63,3 +81,5 @@ class Dataset:
 
 if __name__ == "__main__":
     d = Dataset(sys.argv[1], sys.argv[2])
+
+    d.write('./test_out', 'en', 'vi')
