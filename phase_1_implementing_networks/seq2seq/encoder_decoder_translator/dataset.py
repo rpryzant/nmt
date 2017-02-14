@@ -16,42 +16,45 @@ import sys
 import nltk
 import itertools
 import numpy as np
-
+import string
 
 
 START = "_START_"
 END = "_END_"
 UNK = "_UNK_"
 VOCAB_SIZE = 5000
-
+MAX_SEQ_LEN = 50
 
 class Dataset:
 
-    def __init__(self, l1_path, l2_path):
-        """ constructor for raw corpus data
-        """
-        self.l1_raw, self.l1_dictionary, self.l1_indices = self.parse_source(l1_path)
-        self.l2_raw, self.l2_dictionary, self.l2_indices = self.parse_source(l2_path)
+    def __init__(self, *args):
+        self.batch_index = 0
+        if len(args) == 2:
+            # raw corpus data
+            l1_path, l2_path = args
+            self.l1_name, self.l2_name = 'l1', 'l2'
+            self.l1_raw, self.l1_dictionary, self.rev_l1_dictionay, self.l1_indices = self.parse_source(l1_path)
+            self.l2_raw, self.l2_dictionary, self.rev_l2_dictionay, self.l2_indices = self.parse_source(l2_path)
+        else:
+            # preprocessed corpus data
+            path, self.l1_name, self.l2_name = args
+            self.l1_raw, self.l1_dictionary, self.l1_rev_dictionary, self.l1_indices = self.read(path, self.l1_name)
+            self.l2_raw, self.l2_dictionary, self.l2_rev_dictionray, self.l2_indices = self.read(path, self.l2_name)
 
-
-    def __init__(self, path, l1_name, l2_name):
-        """ constructor for pre-processed corpus data
-        """
-        self.l1_raw, self.l1_dictionary, self.l1_indices = self.read(path, l1_name)
-        self.l2_raw, self.l2_dictionary, self.l2_indices = self.read(path, l2_name)
-        print self.l2_indices
+        self.max_seq_len = MAX_SEQ_LEN
 
 
     def read(self, path, language):
         """ reads sentances, dictionary, and sentence indices from preprocessed corpus
         """
         base = '%s/%s.' % (path, language)
-        raw = np.load(base + 'dictionary.npy')
+        raw = np.load(base + 'raw.npy')
         dictionary = np.load(base + 'dictionary.npy')
         dictionary = dict([(x[0], int(x[1])) for x in dictionary ])
+        rev_dictionary = {v: k for (k, v) in dictionary.iteritems()}
         indices = np.load(base + 'indices.npy')
 
-        return raw, dictionary, indices
+        return raw, dictionary, rev_dictionary, indices
 
 
     def write(self, path, l1_name, l2_name):
@@ -72,10 +75,6 @@ class Dataset:
         np.save(l2_base + 'indices', np.array(self.l2_indices))
 
 
-
-
-
-
     def parse_source(self, path):
         """ parses a space-seperated corpus into
               1) a list of constituent sentances with start & end tokens added
@@ -85,28 +84,100 @@ class Dataset:
             note that 0 is a special index reserved for for unknown/out-of-dictionary words
         """
         f = open(path, 'rb')
-        s = [s.strip().decode('utf-8').lower() for s in f]
-        s = ['%s %s %s' % (START, x, END) for x in s]
+        src = [s.translate(None, string.punctuation) for s in f]
+        src = [s.strip().decode('utf-8').lower() for s in src]
+        src = ['%s %s %s' % (START, x, END) for x in src]
+        src_tok = [nltk.word_tokenize(x) for x in src]
 
-        tok_s = [nltk.word_tokenize(x) for x in s]
-        f = nltk.FreqDist(itertools.chain(*tok_s))
+        f = nltk.FreqDist(itertools.chain(*src_tok))
         vocab = f.most_common(VOCAB_SIZE - 1)
 
         reverse_index = {w: i+1 for i, (w, f) in enumerate(vocab)}
-        reverse_index[UNK] = 0
+        reverse_index[UNK] = VOCAB_SIZE
+        index = {v: k for (k, v) in reverse_index.iteritems()}
 
-        for i, s in enumerate(tok_s):
-            tok_s[i] = [w if w in reverse_index else UNK for w in s]
 
-        treated_corpus = [[reverse_index[w] for w in sent] for sent in tok_s]
+        src_tok_unk = [[w if w in reverse_index else UNK for w in s] for s in src_tok]
+        treated_corpus = [[reverse_index[w] for w in sent] for sent in src_tok_unk]
 
-        return s, reverse_index, treated_corpus
+        return src_tok, reverse_index, index, treated_corpus
+
+
+    def set_language_names(self, n1, n2):
+        self.l1_name = n1
+        self.l2_name = n2
+
+
+    def has_next_batch(self, batch_size):
+        """ tests whether dataset can emit another batch
+        """
+        return self.batch_index + batch_size < len(self.l1_indices)
+
+
+    def reset(self):
+        """ resets batch counter to 0
+        """
+        self.batch_index = 0
+
+
+    def reconstruct(self, seq, language):
+        if language == self.l1_name:
+            return ' '.join(self.l1_rev_dictionary[x] for x in seq)
+        elif language == self.l2_name:
+            return ' '.join(self.l2_rev_dictionary[x] for x in seq)
+        print 'ERROR: language %s unrecognized! Supported languages are %s and %s.' % \
+            (language, self.l1_name, self.l2_name)
+
+
+    def next_batch(self, batch_size):
+        """ returns next batch_size examples and their lengths
+            pads, clips, and measures lengths
+        """
+        def clip_pad(seq, dict):
+            ln = len(seq)
+            if ln > self.max_seq_len:
+                seq = seq[:self.max_seq_len-1]
+                seq += [dict[END]]
+                ln = self.max_seq_len
+            else:
+                seq += [0] * (self.max_seq_len - ln)
+                ln = ln
+            return seq, ln
+
+        x = self.l1_indices[self.batch_index : self.batch_index + batch_size]
+        y = self.l2_indices[self.batch_index : self.batch_index + batch_size]
+
+        self.batch_index += batch_size
+
+        l = []
+        for i in range(batch_size):
+            lengths = [-1, -1]
+            x[i], lengths[0] = clip_pad(x[i], self.l1_dictionary)
+            y[i], lengths[1] = clip_pad(y[i], self.l2_dictionary)
+            l.append(lengths)
+
+        return x, y, l
+
+
+        
+
 
 
 
 
 if __name__ == "__main__":
-#    d = Dataset(sys.argv[1], sys.argv[2])
+    d = Dataset(*tuple(sys.argv[1:]))
 #    d.write('./test_out', 'en', 'vi')
+#    quit()
 
-    d = Dataset(sys.argv[1], sys.argv[2], sys.argv[3])
+    while d.has_next_batch(3):
+        x, y, l = d.next_batch(3)
+        print x[0]
+        print y[0]
+        print l[0]
+        print 
+        print
+
+
+
+
