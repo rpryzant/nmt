@@ -33,8 +33,8 @@ class Dataset:
             # raw corpus data
             l1_path, l2_path = args
             self.l1_name, self.l2_name = 'l1', 'l2'
-            self.l1_raw, self.l1_dictionary, self.rev_l1_dictionay, self.l1_indices = self.parse_source(l1_path)
-            self.l2_raw, self.l2_dictionary, self.rev_l2_dictionay, self.l2_indices = self.parse_source(l2_path)
+            self.l1_raw, self.l1_dictionary, self.rev_l1_dictionary, self.l1_indices = self.parse_source(l1_path)
+            self.l2_raw, self.l2_dictionary, self.rev_l2_dictionary, self.l2_indices = self.parse_source(l2_path)
         else:
             # preprocessed corpus data
             path, self.l1_name, self.l2_name = args
