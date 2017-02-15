@@ -130,6 +130,12 @@ class Dataset:
         """ resets batch counter to 0
         """
         self.batch_index = 0
+
+
+    def cancel_subset(self):
+        """ resets batch counter to 0 and restores from subset
+        """
+        self.batch_index = 0
         self.l1_raw = self.backups['l1_raw']
         self.l1_indices = self.backups['l1_indices']
         self.l2_raw = self.backups['l2_raw']
@@ -167,22 +173,20 @@ class Dataset:
                 ln = self.max_seq_len
             else:
                 seq += [0] * (self.max_seq_len - ln)
-                ln = ln
             return seq, ln
 
 
         l = []
-        x = self.l1_indices[self.batch_index : self.batch_index + batch_size]
-        y = self.l2_indices[self.batch_index : self.batch_index + batch_size]
+        x = self.l1_indices[self.batch_index : self.batch_index + batch_size].tolist()
+        y = self.l2_indices[self.batch_index : self.batch_index + batch_size].tolist()
+
         self.batch_index += batch_size
 
         x_batch = [clip_pad(x[i], self.l1_dictionary)[0] for i in range(batch_size)]
-#        x_batch = np.array(x_batch)
         y_batch = [clip_pad(y[i], self.l2_dictionary)[0] for i in range(batch_size)]
-#        y_batch = np.array(y_batch) 
-        l_batch = np.count_nonzero(y_batch, axis=1)
+        l_batch = np.count_nonzero(np.array(y_batch), axis=1).tolist()
 
-        return x, y, l
+        return x_batch, y_batch, l_batch
 
 
         

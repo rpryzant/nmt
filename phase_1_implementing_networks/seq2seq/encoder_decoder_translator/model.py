@@ -143,11 +143,6 @@ class Seq2Seq:
 
 
     def train_on_batch(self, x_batch, y_batch, l_batch):
-        print x_batch.shape
-        print [len(i) for i in x_batch]
-        print y_batch.shape
-        print [len(i) for i in y_batch]
-        print l_batch
         _, loss = self.sess.run([self.train_step, self.loss],
                                 feed_dict={
                                     self.source: x_batch,
