@@ -29,43 +29,31 @@ import numpy as np
 
 
 
-class config:
-    source_n = 80000
-    max_source_len = 25
-    embedding_size = 64
-    hidden_size = 128
-    dropout_rate = 0.5
-    num_layers = 3
-    target_n = 80000
-    max_target_len = 25
-    learning_rate = 0.0003
-
 
 
 class Seq2Seq:
     def __init__(self, config, batch_size, testing=False):
-        source_n          = config.source_n
+        src_vocab_size    = config.src_vocab_size
         max_source_len    = config.max_source_len
         embedding_size    = config.embedding_size
         hidden_size       = config.hidden_size
         dropout_rate      = config.dropout_rate
         num_layers        = config.num_layers
-        target_n          = config.target_n
+        tgt_vocab_size    = config.tgt_vocab_size
         max_target_len    = config.max_target_len
         lr                = config.learning_rate
 
         self.testing = testing
 
-        source     = tf.placeholder(tf.int32, [batch_size, max_source_len], name='source')
-        target     = tf.placeholder(tf.int32, [batch_size, max_source_len], name='target')
-        target_len = tf.placeholder(tf.int32, [batch_size], name='target_len')        # for masking loss
-
+        self.source     = tf.placeholder(tf.int32, shape=[None, max_source_len], name='source')
+        self.target     = tf.placeholder(tf.int32, shape=[None, max_source_len], name='target')
+        self.target_len = tf.placeholder(tf.int32, shape=[None], name='target_len')        # for masking loss
 
         # build encoder
         with tf.variable_scope("encoder"):
             # make all the graph nodes I'll need
             source_embedding = tf.get_variable("source_embedding",
-                                               shape=[source_n, embedding_size],
+                                               shape=[src_vocab_size, embedding_size],
                                                initializer=tf.contrib.layers.xavier_initializer())
             source_proj_W = tf.get_variable("s_proj_W", 
                                             shape=[embedding_size, hidden_size],
@@ -78,7 +66,7 @@ class Seq2Seq:
             encoder = tf.nn.rnn_cell.MultiRNNCell([encoder_cell]*num_layers, state_is_tuple=True)
 
             # look up embedding
-            source_x = tf.nn.embedding_lookup(source_embedding, source)
+            source_x = tf.nn.embedding_lookup(source_embedding, self.source)
             source_x = tf.unstack(source_x, axis=1)                         # split into a list of embeddings, 1 per word
 
             # run encoder over source sentence
@@ -94,7 +82,7 @@ class Seq2Seq:
         probs = []
         with tf.variable_scope("decoder"):
             target_embedding = tf.get_variable("target_embedding",
-                                               shape=[target_n, embedding_size],
+                                               shape=[tgt_vocab_size, embedding_size],
                                                initializer=tf.contrib.layers.xavier_initializer())
             target_proj_W = tf.get_variable("t_proj_W",
                                             shape=[embedding_size, hidden_size],
@@ -112,13 +100,13 @@ class Seq2Seq:
             out_embed_b = tf.get_variable("o_embed_b",
                                           shape=[embedding_size],
                                           initializer=tf.contrib.layers.xavier_initializer())
-            out_W = tf.get_variable("Wo", shape=[embedding_size, target_n],
+            out_W = tf.get_variable("Wo", shape=[embedding_size, tgt_vocab_size],
                                     initializer=tf.contrib.layers.xavier_initializer())
-            out_b = tf.get_variable("bo", shape=[target_n],
+            out_b = tf.get_variable("bo", shape=[tgt_vocab_size],
                                     initializer=tf.contrib.layers.xavier_initializer())
 
             # look up embedding
-            target_x = tf.nn.embedding_lookup(target_embedding, target)
+            target_x = tf.nn.embedding_lookup(target_embedding, self.target)
             target_x = tf.unstack(target_x, axis=1)
 
             # decode source by initializing with encoder's final hidden state
@@ -140,18 +128,46 @@ class Seq2Seq:
                     x = tf.nn.embedding_lookup(target_embedding, x)
 
         logits = logits[:-1]
-        targets = tf.split(1, max_target_len, target)[1:]                # ignore <start> token
-        target_mask = tf.sequence_mask(target_len - 1, max_target_len - 1, dtype=tf.float32)
+        targets = tf.split(1, max_target_len, self.target)[1:]                # ignore <start> token
+        target_mask = tf.sequence_mask(self.target_len - 1, max_target_len - 1, dtype=tf.float32)
         loss_weights = tf.unstack(target_mask, None, 1)                  # 0/1 weighting for variable len tgt seqs
 
-        loss = tf.nn.seq2seq.sequence_loss(logits, targets, loss_weights)
-        output_probs = tf.transpose(tf.pack(probs), [1, 0, 2])
+        self.loss = tf.nn.seq2seq.sequence_loss(logits, targets, loss_weights)
+        self.output_probs = tf.transpose(tf.pack(probs), [1, 0, 2])
 
         optimizer = tf.train.AdamOptimizer(lr)
-        train_step = optimizer.minimize(loss)
+        self.train_step = optimizer.minimize(self.loss)
+
+        self.sess = tf.Session()
+        self.sess.run(tf.global_variables_initializer())
 
 
-c = config()
+    def train_on_batch(self, x_batch, y_batch, l_batch):
+        print x_batch.shape
+        print [len(i) for i in x_batch]
+        print y_batch.shape
+        print [len(i) for i in y_batch]
+        print l_batch
+        _, loss = self.sess.run([self.train_step, self.loss],
+                                feed_dict={
+                                    self.source: x_batch,
+                                    self.target: y_batch,
+                                    self.target_len: l_batch
+                                })
+        return loss
 
 
-test = Seq2Seq(c, 3)
+
+
+# TODO - UNIT TESTS ON FAKE DATA
+#c = config()
+#test = Seq2Seq(c, 3)
+
+
+
+
+
+
+
+
+
