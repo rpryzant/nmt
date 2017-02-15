@@ -8,9 +8,9 @@ Class for managing en-alt parallel corpora and performing all
 
 === USAGE
 = from plaintext corpus
-python dataset.py data/train.en data/train.vi  
+python dataset.py data/raw/train.en data/raw/train.vi  
 = from preprocessed corpus
-python dataset.py ex_parsed_data/ en vi
+python dataset.py data/processed/ en vi
 """
 import sys
 import nltk
@@ -121,6 +121,10 @@ class Dataset:
 
 
     def reconstruct(self, seq, language):
+        """ rebuilds the textual representation of a index sequence.
+            the language param is used to determine which dictionary to use
+               during reconstruction
+        """
         if language == self.l1_name:
             return ' '.join(self.l1_rev_dictionary[x] for x in seq)
         elif language == self.l2_name:
@@ -162,21 +166,18 @@ class Dataset:
         
 
 
-
-
-
 if __name__ == "__main__":
     d = Dataset(*tuple(sys.argv[1:]))
-#    d.write('./test_out', 'en', 'vi')
-#    quit()
+    d.write('./data/processed', 'en', 'vi')
 
-    while d.has_next_batch(3):
-        x, y, l = d.next_batch(3)
-        print x[0]
-        print y[0]
-        print l[0]
-        print 
-        print
+
+#    while d.has_next_batch(3):
+#        x, y, l = d.next_batch(3)
+#        print x[0]
+#        print y[0]
+#        print l[0]
+#        print 
+#        print
 
 
 
