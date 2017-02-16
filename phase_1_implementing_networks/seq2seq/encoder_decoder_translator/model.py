@@ -1,27 +1,6 @@
 """
 based on http://arxiv.org/abs/1412.7449 and https://arxiv.org/abs/1508.04025 (mostly the latter)
 
-
-FINISHED READING DILLIONS CODE. LOOKS GOOD. UNDERSTAND PRETTY MUCH EVERYTHING EXCEPT
-FOR A FEW TF MATRIX MANIPULATIONS. EASY ENOUGH TO FIGURE OUT WHEN YOU'RE PLAYING
-WIT THE PLAYDOUGH. GONNA START THIS!!
-
-*********ONE THING YOU SHOULD DO, REID, IS USE TF.UNPACK INSTEAD OF HIS SPLITTING AND SMUSHING
-            TO LOOP THROUGH ALL THE EMBEDDING VECTORS FOR A SENTANCE
-
-
-
-
-=== ATTENTION RESOURCES:
-
-http://distill.pub/2016/augmented-rnns/
-https://github.com/lmthang/thesis/blob/master/thesis.pdf
-  pg 54
-https://arxiv.org/abs/1508.04025
-http://www.wildml.com/2016/01/attention-and-memory-in-deep-learning-and-nlp/
-https://blog.heuritech.com/2016/01/20/attention-mechanism/
-https://indico.io/blog/sequence-modeling-neural-networks-part2-attention-models/
-
 """
 
 import tensorflow as tf
@@ -32,7 +11,7 @@ import numpy as np
 
 
 class Seq2Seq:
-    def __init__(self, config, batch_size, testing=False):
+    def __init__(self, config, batch_size, testing=False, model_path=None):
         src_vocab_size    = config.src_vocab_size
         max_source_len    = config.max_source_len
         embedding_size    = config.embedding_size
@@ -48,6 +27,10 @@ class Seq2Seq:
         self.source     = tf.placeholder(tf.int32, shape=[None, max_source_len], name='source')
         self.target     = tf.placeholder(tf.int32, shape=[None, max_source_len], name='target')
         self.target_len = tf.placeholder(tf.int32, shape=[None], name='target_len')        # for masking loss
+
+        # for counting interations
+        self.global_step = tf.Variable(0, dtype=tf.int32, trainable=False, name='global_step')
+
 
         # build encoder
         with tf.variable_scope("encoder"):
@@ -136,13 +119,45 @@ class Seq2Seq:
         self.output_probs = tf.transpose(tf.pack(probs), [1, 0, 2])
 
         optimizer = tf.train.AdamOptimizer(lr)
-        self.train_step = optimizer.minimize(self.loss)
+        self.train_step = optimizer.minimize(self.loss, global_step=self.global_step)
 
         self.sess = tf.Session()
         self.sess.run(tf.global_variables_initializer())
 
+        self.saver = tf.train.Saver()
+        if model_path is not None:
+            self.saver.restore(self.sess, model_path)
+
+    
+    def kill(self):
+        """ kills this model
+        """
+        self.sess.close()
+
+
+    def save(self, path):
+        """ save the graph as a checkpoint.
+            the provided path should include a filename prefix, as the
+              written checkpoint will have an "iteration #" suffix
+        """
+        self.saver.save(self.sess, path, global_step=self.global_step)
+
+
+    def predict_on_batch(self, x_batch):
+        """ predict translation for a batch of inputs
+        """
+        if not self.testing:
+            print "WARNING: model not in testing mode. previous outputs won't be fed back into the decoder. Reconsider"
+
+        probs = self.sess.run(self.output_probs, feed_dict={self.source: x_batch})
+        print probs
+        return np.argmax(probs, axis=1)
 
     def train_on_batch(self, x_batch, y_batch, l_batch):
+        """ train on a minibatch of data. x and y are assumed to be 
+            padded to length max_seq_len, with l reflecting the original
+            lengths of the target
+        """
         _, loss = self.sess.run([self.train_step, self.loss],
                                 feed_dict={
                                     self.source: x_batch,
