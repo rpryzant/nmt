@@ -11,7 +11,7 @@ python main.py data/processed/ en vi tmp/checkpoint.ckpt-103 load
 """
 
 from dataset import Dataset
-from model import Seq2Seq, Seq2SeqV2
+from model import Seq2Seq, Seq2SeqV2, Seq2SeqV3
 import sys
 
 
@@ -38,6 +38,7 @@ restore = sys.argv[5] if len(sys.argv) == 6 else None
 batch_size = 5
 print 'building dataset...'
 d = Dataset(data_loc, lang1, lang2)
+'dataset done'
 d.subset(50)    # take only 2k sentances
 
 c = config()
@@ -52,18 +53,19 @@ c = config()
 #     print 'no model found. building model...'
 #     model = Seq2Seq(c, batch_size)
 #     print 'model built.'
+print 'building model...'
+model = Seq2SeqV3(c, batch_size)
+print 'model built.'
 
-model = Seq2SeqV2(c, batch_size)
-
+print 'training...'
 for epoch in range(7):
     epoch_loss = 0.0
     i = 0
     while d.has_next_batch(batch_size):
-        loss, check = model.train_on_batch(*d.next_batch(batch_size))
+        loss = model.train_on_batch(*d.next_batch(batch_size))
         epoch_loss += loss
         i += 1
-        print check
-    print 'epoch={}\t mean batch loss={:.4f}'.format(epoch, epoch_loss / (i * batch_size))
+    print 'epoch', epoch, 'loss', (epoch_loss / (i * batch_size))
     d.reset()
 
 

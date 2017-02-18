@@ -18,7 +18,7 @@ class Seq2Seq:
         hidden_size       = config.hidden_size
         dropout_rate      = config.dropout_rate
         num_layers        = config.num_layers
-        tgt_vocab_size    = config.tgt_vocab_size
+        tgt_vocab_size    = config.target_vocab_size
         max_target_len    = config.max_target_len
         lr                = config.learning_rate
 
@@ -457,131 +457,139 @@ class Seq2SeqV3(object):
         # TODO IF INFERENCE, DO STUFF HERE
         target_embedded = tf.nn.embedding_lookup(target_embedding, self.target)
 
-        decoder_output = self.encode_decode(source=source_embedded,
+        self.decoder_output = self.encode_decode(source=source_embedded,
                                             source_len=self.source_len,
                                             target=target_embedded,
                                             target_len=self.target_len)
-        
+        # per-word loss for each batch
+        self.loss = self.cross_entropy_sequence_loss(logits=self.decoder_output,
+                                                targets=self.target,
+                                                seq_len=self.target_len)
+
+        self.train_step = self.backward_pass(self.loss)
+
+        self.check = tf.add_check_numerics_ops()
+
+        self.sess = tf.Session()
+        self.sess.run(tf.global_variables_initializer())
+
+
+
+    def train_on_batch(self, x_batch, x_lens, y_batch, y_lens):
+        """ train on a minibatch of data. x and y are assumed to be 
+            padded to length max_seq_len, with l reflecting the original
+            lengths of the target
+        """
+        _, loss = self.sess.run([self.train_step, self.loss],
+                                feed_dict={
+                                    self.source: x_batch,
+                                    self.source_len: x_lens,
+                                    self.target: y_batch,
+                                    self.target_len: y_lens,
+                                    self.dropout: 0.5
+                                })
+
+        return np.mean(loss[loss > 0])   # mean loss
+
+
+    def backward_pass(self, loss):
+        optimizer = tf.train.AdamOptimizer(self.learning_rate)
+        train_step = optimizer.minimize(loss)
+        return train_step
+
+
+    def cross_entropy_sequence_loss(self, logits, targets, seq_len):
+        losses = tf.nn.sparse_softmax_cross_entropy_with_logits(
+            logits=logits,
+            labels=targets)
+
+        mask = tf.sequence_mask(seq_len, self.max_target_len, dtype=tf.float32)
+
+        losses = losses * mask
+
+        return losses
+
 
     def encode_decode(self, source, source_len, target, target_len):
-        encoder_cell = self.build_encoder_cell()        
-        encoder_output = self.encoder_fn(source, source_len, encoder_cell)
-        # next decoder - TODO
+        encoder_cell = self.build_rnn_cell()        
+        encoder_output = self.run_encoder(source, source_len, encoder_cell)
+
+        decoder_cell = self.build_rnn_cell()
+        decoder_output = self.run_decoder(target, 
+                                        target_len, 
+                                        decoder_cell, 
+                                        encoder_output['final_state'])
+
+        return decoder_output
 
 
-    def encoder_fn(self, source, source_len, cell):
+    def run_decoder(self, target, target_len, decoder, initial_state):
+        target_embedding = tf.get_variable("target_embedding",
+                                           shape=[self.target_vocab_size, self.embedding_size],
+                                           initializer=tf.contrib.layers.xavier_initializer())
+        target_proj_W = tf.get_variable("t_proj_W",
+                                        shape=[self.embedding_size, self.hidden_size],
+                                        initializer=tf.contrib.layers.xavier_initializer())
+        target_proj_b = tf.get_variable("t_proj_b", shape=[self.hidden_size],
+                                        initializer=tf.contrib.layers.xavier_initializer())
+
+        # projection to output
+        out_embed_W = tf.get_variable("o_embed_W",
+                                      shape=[self.hidden_size, self.embedding_size],
+                                      initializer=tf.contrib.layers.xavier_initializer())
+        out_embed_b = tf.get_variable("o_embed_b",
+                                      shape=[self.embedding_size],
+                                      initializer=tf.contrib.layers.xavier_initializer())
+        out_W = tf.get_variable("Wo", shape=[self.embedding_size, self.target_vocab_size],
+                                initializer=tf.contrib.layers.xavier_initializer())
+        out_b = tf.get_variable("bo", shape=[self.target_vocab_size],
+                                initializer=tf.contrib.layers.xavier_initializer())
+
+        target_x = tf.unstack(target, axis=1)
+
+        # decode source by initializing with encoder's final hidden state
+        s = initial_state
+        logits = []
+        for t in range(self.max_target_len):
+            if t > 0: tf.get_variable_scope().reuse_variables()      # reuse variables after 1st iteration
+            if self.testing and t == 0:
+                pass # TODO EMBED SEQUENCE START TOKEN
+            elif not self.testing:
+                x = target_x[t]
+
+            projection = tf.matmul(x, target_proj_W) + target_proj_b # project embedding into rnn space
+            h, s = decoder(projection, s)                            # s is last encoder state when t == 0
+            
+            out_embedding = tf.matmul(h, out_embed_W) + out_embed_b  # project output to target embedding space
+            logit = tf.matmul(out_embedding, out_W) + out_b 
+            logits.append(logit)
+
+            if self.testing:
+                x = tf.cast(tf.argmax(prob, 1), tf.int32)
+                x = tf.nn.embedding_lookup(target_embedding, x)
+
+        logits = tf.stack(logits)
+        logits = tf.transpose(logits, [1, 0, 2])
+        return logits
+
+
+    def run_encoder(self, source, source_len, cell):
         outputs, state = tf.nn.dynamic_rnn(
-            cell_fw=cell,
-            cell_bw=cell,
+            cell=cell,
             inputs=source,
             sequence_length=source_len,
             dtype=tf.float32)
         return {'outputs': outputs, 'final_state': state}
 
-    def build_encoder_cell(self):
-        encoder_cell = tf.nn.rnn_cell.BasicLSTMCell(hidden_size, state_is_tuple=True)
-        encoder_cell = tf.nn.rnn_cell.DropoutWrapper(encoder_cell, output_keep_prob=dropout_rate)
-        encoder = tf.nn.rnn_cell.MultiRNNCell([encoder_cell]*num_layers, state_is_tuple=True)
-        return encoder
 
+    def build_rnn_cell(self):
+        cell = tf.nn.rnn_cell.BasicLSTMCell(self.hidden_size, state_is_tuple=True)
+        cell = tf.nn.rnn_cell.DropoutWrapper(cell, 
+                                                    input_keep_prob=self.dropout,
+                                                    output_keep_prob=self.dropout)
+        stacked_cell = tf.nn.rnn_cell.MultiRNNCell([cell]*self.num_layers, state_is_tuple=True)
+        return stacked_cell
 
-
-        # build encoder
-        with tf.variable_scope("encoder"):
-            # make all the graph nodes I'll need
-            source_embedding = tf.get_variable("source_embedding",
-                                               shape=[src_vocab_size, embedding_size],
-                                               initializer=tf.contrib.layers.xavier_initializer())
-            source_proj_W = tf.get_variable("s_proj_W", 
-                                            shape=[embedding_size, hidden_size],
-                                            initializer=tf.contrib.layers.xavier_initializer())
-            source_proj_b = tf.get_variable("s_proj_b",
-                                            shape=[hidden_size],
-                                            initializer=tf.contrib.layers.xavier_initializer())
-            encoder_cell = tf.nn.rnn_cell.BasicLSTMCell(hidden_size, state_is_tuple=True)
-            encoder_cell = tf.nn.rnn_cell.DropoutWrapper(encoder_cell, output_keep_prob=dropout_rate)
-            encoder = tf.nn.rnn_cell.MultiRNNCell([encoder_cell]*num_layers, state_is_tuple=True)
-
-            # look up embedding
-            source_x = tf.nn.embedding_lookup(source_embedding, self.source)
-            source_x = tf.unstack(source_x, axis=1)                         # split into a list of embeddings, 1 per word
-
-            # run encoder over source sentence
-            s = encoder.zero_state(batch_size, tf.float32)
-            for t in range(max_source_len):
-                if t > 0: tf.get_variable_scope().reuse_variables()         # let tf reuse variables
-                x = source_x[t]
-                projection = tf.matmul(x, source_proj_W) + source_proj_b    # project embedding into rnn's space
-                h, s = encoder(projection, s)
-
-        # build decoder
-        logits = []
-        probs = []
-        with tf.variable_scope("decoder"):
-            target_embedding = tf.get_variable("target_embedding",
-                                               shape=[tgt_vocab_size, embedding_size],
-                                               initializer=tf.contrib.layers.xavier_initializer())
-            target_proj_W = tf.get_variable("t_proj_W",
-                                            shape=[embedding_size, hidden_size],
-                                            initializer=tf.contrib.layers.xavier_initializer())
-            target_proj_b = tf.get_variable("t_proj_b", shape=[hidden_size],
-                                            initializer=tf.contrib.layers.xavier_initializer())
-            decoder_cell = tf.nn.rnn_cell.BasicLSTMCell(hidden_size, state_is_tuple=True)
-            decoder_cell = tf.nn.rnn_cell.DropoutWrapper(decoder_cell, output_keep_prob=dropout_rate)
-            decoder = tf.nn.rnn_cell.MultiRNNCell([decoder_cell]*num_layers, state_is_tuple=True)
-
-            # projection to output
-            out_embed_W = tf.get_variable("o_embed_W",
-                                          shape=[hidden_size, embedding_size],
-                                          initializer=tf.contrib.layers.xavier_initializer())
-            out_embed_b = tf.get_variable("o_embed_b",
-                                          shape=[embedding_size],
-                                          initializer=tf.contrib.layers.xavier_initializer())
-            out_W = tf.get_variable("Wo", shape=[embedding_size, tgt_vocab_size],
-                                    initializer=tf.contrib.layers.xavier_initializer())
-            out_b = tf.get_variable("bo", shape=[tgt_vocab_size],
-                                    initializer=tf.contrib.layers.xavier_initializer())
-
-            # look up embedding
-            target_x = tf.nn.embedding_lookup(target_embedding, self.target)
-            target_x = tf.unstack(target_x, axis=1)
-
-            # decode source by initializing with encoder's final hidden state
-            for t in range(max_target_len):
-                if t > 0: tf.get_variable_scope().reuse_variables()      # reuse variables after 1st iteration
-                if not self.testing or t == 0: x = target_x[t]           # feed in provided targets while training
-
-                projection = tf.matmul(x, target_proj_W) + target_proj_b # project embedding into rnn space
-                h, s = decoder(projection, s)                            # s is last encoder state when t == 0
-                
-                out_embedding = tf.matmul(h, out_embed_W) + out_embed_b  # project output to target embedding space
-                logit = tf.matmul(out_embedding, out_W) + out_b 
-                logits.append(logit)
-                prob = tf.nn.softmax(logit)
-                probs.append(prob)
-
-                if self.testing:
-                    x = tf.cast(tf.argmax(prob, 1), tf.int32)
-                    x = tf.nn.embedding_lookup(target_embedding, x)
-
-        logits = logits[:-1]                 # why'd i do this?
-        targets = tf.split(1, max_target_len, self.target)[1:]                # ignore <start> token
-        target_mask = tf.sequence_mask(self.target_len - 1, max_target_len - 1, dtype=tf.float32)
-        loss_weights = tf.unstack(target_mask, None, 1)                  # 0/1 weighting for variable len tgt seqs
-
-        self.loss = tf.nn.seq2seq.sequence_loss(logits, targets, loss_weights)
-
-        self.output_probs = tf.transpose(tf.pack(probs), [1, 0, 2])
-
-        optimizer = tf.train.AdamOptimizer(lr)
-        self.train_step = optimizer.minimize(self.loss, global_step=self.global_step)
-
-        self.sess = tf.Session()
-        self.sess.run(tf.global_variables_initializer())
-
-        self.saver = tf.train.Saver()
-        if model_path is not None:
-            self.saver.restore(self.sess, model_path)
 
 
 

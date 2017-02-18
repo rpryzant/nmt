@@ -183,10 +183,12 @@ class Dataset:
         self.batch_index += batch_size
 
         x_batch = [clip_pad(x[i], self.l1_dictionary)[0] for i in range(batch_size)]
-        y_batch = [clip_pad(y[i], self.l2_dictionary)[0] for i in range(batch_size)]
-        l_batch = np.count_nonzero(np.array(y_batch), axis=1).tolist()
+        x_lens = np.count_nonzero(np.array(x_batch), axis=1).tolist()
 
-        return x_batch, y_batch, l_batch
+        y_batch = [clip_pad(y[i], self.l2_dictionary)[0] for i in range(batch_size)]
+        y_lens = np.count_nonzero(np.array(y_batch), axis=1).tolist()
+
+        return x_batch, x_lens, y_batch, y_lens
 
 
         
