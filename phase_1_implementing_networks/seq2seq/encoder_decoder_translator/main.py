@@ -11,7 +11,7 @@ python main.py data/processed/ en vi tmp/checkpoint.ckpt-103 load
 """
 
 from dataset import Dataset
-from model import Seq2Seq
+from model import Seq2Seq, Seq2SeqV2
 import sys
 
 
@@ -23,9 +23,9 @@ class config:
     hidden_size = 128
     dropout_rate = 0.5
     num_layers = 3
-    tgt_vocab_size = 5000 + 1 # +1 for unk
+    target_vocab_size = 5000 + 1 # +1 for unk
     max_target_len = 50
-    learning_rate = 0.0003
+    learning_rate = 0.0001
 
 
 data_loc = sys.argv[1]
@@ -44,32 +44,46 @@ c = config()
 
 
 
-if restore is not None:
-    print 'restoring model...'
-    model = Seq2Seq(c, batch_size, testing=True, model_path=model_path)
-    print 'model restored.'
-else:
-    print 'no model found. building model...'
-    model = Seq2Seq(c, batch_size)
-    print 'model built.'
+# if restore is not None:
+#     print 'restoring model...'
+#     model = Seq2Seq(c, batch_size, testing=True, model_path=model_path)
+#     print 'model restored.'
+# else:
+#     print 'no model found. building model...'
+#     model = Seq2Seq(c, batch_size)
+#     print 'model built.'
 
+model = Seq2SeqV2(c, batch_size)
+
+for epoch in range(7):
+    epoch_loss = 0.0
+    i = 0
+    while d.has_next_batch(batch_size):
+        loss, check = model.train_on_batch(*d.next_batch(batch_size))
+        epoch_loss += loss
+        i += 1
+        print check
+    print 'epoch={}\t mean batch loss={:.4f}'.format(epoch, epoch_loss / (i * batch_size))
+    d.reset()
+
+
+d.reset()
 
 batch = d.next_batch(batch_size)    # extract x's
 pred = model.predict_on_batch(*batch)
 
-print batch[0][0]
-print d.reconstruct(batch[0][0], lang1)
+print [np.argmax(p) for p in pred[0]]
 
-print
+for i in range(len(batch)):
+    print d.reconstruct(batch[i][0], lang1)
+    print
+    print batch[i][0]
+    print d.reconstruct(batch[i][0], lang2)
+    print
+    print pred[i]
+    print d.reconstruct(pred[i], lang2)
 
-print batch[1][0]
-print d.reconstruct(batch[1][0], lang2)
-
-print
-
-print pred[0]
-print d.reconstruct(pred[0], lang2)
-
+    print '==================================='
 
 quit()
 
