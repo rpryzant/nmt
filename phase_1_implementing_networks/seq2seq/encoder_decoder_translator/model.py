@@ -59,7 +59,7 @@ class Seq2Seq:
                 x = source_x[t]
                 projection = tf.matmul(x, source_proj_W) + source_proj_b    # project embedding into rnn's space
                 h, s = encoder(projection, s)
-                
+
         # build decoder
         logits = []
         probs = []
@@ -140,17 +140,25 @@ class Seq2Seq:
             the provided path should include a filename prefix, as the
               written checkpoint will have an "iteration #" suffix
         """
-        self.saver.save(self.sess, path, global_step=self.global_step)
+        return self.saver.save(self.sess, path, global_step=self.global_step)
 
 
-    def predict_on_batch(self, x_batch):
+    def predict_on_batch(self, x_batch, y_batch, l_batch):
         """ predict translation for a batch of inputs
+
+
+            TODO - only take x_batch, and feed in the start symbol instead of
+                    the first word from y
         """
         if not self.testing:
             print "WARNING: model not in testing mode. previous outputs won't be fed back into the decoder. Reconsider"
 
-        probs = self.sess.run(self.output_probs, feed_dict={self.source: x_batch})
-        print probs
+        probs = self.sess.run(self.output_probs, feed_dict={
+                                    self.source: x_batch,
+                                    self.target: y_batch,
+                                    self.target_len: l_batch
+                                })
+
         return np.argmax(probs, axis=1)
 
     def train_on_batch(self, x_batch, y_batch, l_batch):

@@ -1,7 +1,13 @@
 """
-python main.py data/processed/ en vi
 
-python main.py data/processed/ en vi [checkpoint]
+
+
+
+python main.py data/processed/ en vi [checkpoint prefix for saving or loading] [restore if you want to restore]
+
+python main.py data/processed/ en vi tmp/checkpoint.ckpt
+python main.py data/processed/ en vi tmp/checkpoint.ckpt-103 load
+
 """
 
 from dataset import Dataset
@@ -25,6 +31,8 @@ class config:
 data_loc = sys.argv[1]
 lang1 = sys.argv[2]
 lang2 = sys.argv[3]
+model_path = sys.argv[4]
+restore = sys.argv[5] if len(sys.argv) == 6 else None
 
 
 batch_size = 5
@@ -35,11 +43,43 @@ d.subset(50)    # take only 2k sentances
 c = config()
 
 
-if len(sys.argv) == 4:
-    print 'building model...'
+
+if restore is not None:
+    print 'restoring model...'
+    model = Seq2Seq(c, batch_size, testing=True, model_path=model_path)
+    print 'model restored.'
+else:
+    print 'no model found. building model...'
     model = Seq2Seq(c, batch_size)
+    print 'model built.'
+
+
+batch = d.next_batch(batch_size)    # extract x's
+pred = model.predict_on_batch(*batch)
+
+print batch[0][0]
+print d.reconstruct(batch[0][0], lang1)
+
+print
+
+print batch[1][0]
+print d.reconstruct(batch[1][0], lang2)
+
+print
+
+print pred[0]
+print d.reconstruct(pred[0], lang2)
+
+
+quit()
+
+
+
+
+
+try:
     print 'training...'
-    for epoch in range(2):
+    for epoch in range(20):
         epoch_loss = 0.0
         i = 0
         while d.has_next_batch(batch_size):
@@ -49,18 +89,23 @@ if len(sys.argv) == 4:
         print 'epoch={}\t mean batch loss={:.4f}'.format(epoch, epoch_loss / (i * batch_size))
         d.reset()
 
-    model.save('./model')
 
 
-else:
-    model = sys.argv[3]
-    print 'building model...'
-    model_test = Seq2Seq(c, batch_size, testing=True, model_path=model)
-    print 'testing...'
-    probs = model.predict_on_batch(*d.next_batch(batch_size))
-    print probs
+except KeyboardInterrupt:
+    print 'saving model to', model_path
+    save_path = model.save('./%s' % model_path)
+    print 'saved at ', save_path
 
-
+finally:
+        print 'testing...'
+        d.reset()
+        
+        test_batch = d.next_batch(batch_size)  
+        pred_indices = model.predict_on_batch(*test_batch)
+        
+        for (y, y_hat) in zip(test_batch[0], pred_indices):
+            print d.reconstruct(y, lang2)
+            print d.reconstruct(y_hat, lang2)
 
 
 

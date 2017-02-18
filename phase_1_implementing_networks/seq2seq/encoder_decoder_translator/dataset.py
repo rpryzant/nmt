@@ -39,7 +39,7 @@ class Dataset:
             # preprocessed corpus data
             path, self.l1_name, self.l2_name = args
             self.l1_raw, self.l1_dictionary, self.l1_rev_dictionary, self.l1_indices = self.read(path, self.l1_name)
-            self.l2_raw, self.l2_dictionary, self.l2_rev_dictionray, self.l2_indices = self.read(path, self.l2_name)
+            self.l2_raw, self.l2_dictionary, self.l2_rev_dictionary, self.l2_indices = self.read(path, self.l2_name)
 
         self.max_seq_len = MAX_SEQ_LEN
         self.backups = {
@@ -49,7 +49,7 @@ class Dataset:
                 'l1_indices': self.l1_indices,
                 'l2_raw': self.l2_raw, 
                 'l2_raw': self.l2_dictionary, 
-                'l2_rev_dict': self.l2_rev_dictionray,
+                'l2_rev_dict': self.l2_rev_dictionary,
                 'l2_indices': self.l2_indices}
 
 
@@ -148,9 +148,9 @@ class Dataset:
                during reconstruction
         """
         if language == self.l1_name:
-            return ' '.join(self.l1_rev_dictionary[x] for x in seq)
+            return ' '.join(self.l1_rev_dictionary.get(x, '') for x in seq)
         elif language == self.l2_name:
-            return ' '.join(self.l2_rev_dictionary[x] for x in seq)
+            return ' '.join(self.l2_rev_dictionary.get(x, '') for x in seq)
         print 'ERROR: language %s unrecognized! Supported languages are %s and %s.' % \
             (language, self.l1_name, self.l2_name)
 
