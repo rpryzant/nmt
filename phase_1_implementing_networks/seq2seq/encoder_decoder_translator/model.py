@@ -561,14 +561,16 @@ class Seq2SeqV3(object):
 
 
     def encode_decode(self, source, source_len, target, target_len):
-        encoder_cell = self.build_rnn_cell()        
-        encoder_output = self.run_encoder(source, source_len, encoder_cell)
+        with tf.variable_scope('encoder'):
+            encoder_cell = self.build_rnn_cell()        
+            encoder_output = self.run_encoder(source, source_len, encoder_cell)
 
-        decoder_cell = self.build_rnn_cell()
-        decoder_output = self.run_decoder(target, 
-                                        target_len, 
-                                        decoder_cell, 
-                                        encoder_output['final_state'])
+        with tf.variable_scope('decoder'):
+            decoder_cell = self.build_rnn_cell()
+            decoder_output = self.run_decoder(target, 
+                                            target_len, 
+                                            decoder_cell, 
+                                            encoder_output['final_state'])
 
         return decoder_output
 
