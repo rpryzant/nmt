@@ -25,7 +25,7 @@ class config:
     num_layers = 3
     target_vocab_size = 5000 + 1 # +1 for unk
     max_target_len = 50
-    learning_rate = 0.0001
+    learning_rate = 0.0003
 
 
 data_loc = sys.argv[1]
@@ -62,10 +62,16 @@ for epoch in range(7):
     epoch_loss = 0.0
     i = 0
     while d.has_next_batch(batch_size):
-        loss = model.train_on_batch(*d.next_batch(batch_size))
+        batch = d.next_batch(batch_size)
+        logits, loss = model.train_on_batch(*batch)
         epoch_loss += loss
         i += 1
+        print batch[2]
+        print logits
+        print
+        print
     print 'epoch', epoch, 'loss', (epoch_loss / (i * batch_size))
+
     d.reset()
 
 
@@ -74,7 +80,8 @@ d.reset()
 batch = d.next_batch(batch_size)    # extract x's
 pred = model.predict_on_batch(*batch)
 
-print [np.argmax(p) for p in pred[0]]
+print pred
+quit()
 
 for i in range(len(batch)):
     print d.reconstruct(batch[i][0], lang1)

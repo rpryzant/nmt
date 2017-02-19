@@ -471,7 +471,11 @@ class Seq2SeqV3(object):
         self.check = tf.add_check_numerics_ops()
 
         self.sess = tf.Session()
+#        self.writer =  tf.summary.FileWriter('./graphs', self.sess.graph)
+
         self.sess.run(tf.global_variables_initializer())
+#       self.writer.close()
+
 
 
 
@@ -480,7 +484,7 @@ class Seq2SeqV3(object):
             padded to length max_seq_len, with l reflecting the original
             lengths of the target
         """
-        _, loss = self.sess.run([self.train_step, self.loss],
+        _, logits, loss = self.sess.run([self.train_step, self.decoder_output, self.loss],
                                 feed_dict={
                                     self.source: x_batch,
                                     self.source_len: x_lens,
@@ -489,7 +493,26 @@ class Seq2SeqV3(object):
                                     self.dropout: 0.5
                                 })
 
-        return np.mean(loss[loss > 0])   # mean loss
+        return np.argmax(logits, axis=2), np.mean(loss[loss > 0])
+
+
+    def predict_on_batch(self, x_batch, x_lens, y_batch, y_lens):
+        """ predict translation for a batch of inputs
+
+            TODO - only take x_batch, and feed in the start symbol instead of
+                    the first word from y (which is start symbol)
+        """
+        if not self.testing:
+            print "WARNING: model not in testing mode. previous outputs won't be fed back into the decoder. Reconsider"
+
+        logits = self.sess.run(self.decoder_output, feed_dict={
+                                    self.source: x_batch,
+                                    self.source_len: x_lens,
+                                    self.target: y_batch,
+                                    self.target_len: y_lens,
+                                    self.dropout: 0.5
+                                })
+
 
 
     def backward_pass(self, loss):
@@ -499,12 +522,39 @@ class Seq2SeqV3(object):
 
 
     def cross_entropy_sequence_loss(self, logits, targets, seq_len):
+        # dillon's loss function
+        # logits     = tf.unstack(logits, axis=1)[:-1]
+        # targets    = tf.unstack(targets, axis=1)[1:]
+        # target_mask = tf.sequence_mask(seq_len - 1, self.max_target_len - 1, dtype=tf.float32)
+        # loss_weights = tf.unstack(target_mask, None, 1)                  # 0/1 weighting for variable len tgt seqs
+        # loss = tf.nn.seq2seq.sequence_loss(logits, targets, loss_weights)
+        # return loss
+
+        # denny's loss function
+        # logits = tf.transpose(logits, [1, 0, 2])
+        # targets = tf.transpose(targets, [1, 0])
+
+        # losses = tf.nn.sparse_softmax_cross_entropy_with_logits(
+        #     logits=logits,
+        #     labels=targets)
+
+        # # Mask out the losses we don't care about
+        # loss_mask = tf.sequence_mask(
+        #     tf.to_int32(seq_len), tf.to_int32(tf.shape(targets)[0]))
+        # losses = losses * tf.transpose(tf.to_float(loss_mask), [1, 0])
+
+        # return losses
+
+        # my loss function
+        targets    = targets[:,1:]            # shift targets forward 1 space
+        logits     = logits[:,:-1,:]          # remove final token from logits so dimensions agree
+        seq_len    = seq_len - 1              # we've shortened each sequence by 1
+
         losses = tf.nn.sparse_softmax_cross_entropy_with_logits(
             logits=logits,
             labels=targets)
 
-        mask = tf.sequence_mask(seq_len, self.max_target_len, dtype=tf.float32)
-
+        mask = tf.sequence_mask(seq_len, self.max_target_len-1, dtype=tf.float32)
         losses = losses * mask
 
         return losses
@@ -553,7 +603,7 @@ class Seq2SeqV3(object):
         for t in range(self.max_target_len):
             if t > 0: tf.get_variable_scope().reuse_variables()      # reuse variables after 1st iteration
             if self.testing and t == 0:
-                pass # TODO EMBED SEQUENCE START TOKEN
+                pass # TODO EMBED SEQUENCE START TOKEN AND STICK IT INTO S
             elif not self.testing:
                 x = target_x[t]
 
