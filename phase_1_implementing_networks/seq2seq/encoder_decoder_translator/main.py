@@ -94,7 +94,7 @@ d.reset()
 batch = d.next_batch(batch_size)    # extract x's
 pred, _ = model.predict_on_batch(*batch)
 
-print batch
+print batch[2]
 print pred
 quit()
 
