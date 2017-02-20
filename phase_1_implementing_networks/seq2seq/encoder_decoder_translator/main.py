@@ -25,7 +25,8 @@ class config:
     num_layers = 3
     target_vocab_size = 5000 + 1 # +1 for unk
     max_target_len = 50
-    learning_rate = 0.0003
+    learning_rate = 1.0
+#    learning_rate = 0.0003
 
 
 data_loc = sys.argv[1]
@@ -39,7 +40,7 @@ batch_size = 5
 print 'building dataset...'
 d = Dataset(data_loc, lang1, lang2)
 'dataset done'
-d.subset(50)    # take only 2k sentances
+d.subset(6)    # take only 2k sentances
 
 c = config()
 
@@ -58,7 +59,7 @@ model = Seq2SeqV3(c, batch_size)
 print 'model built.'
 
 print 'training...'
-for epoch in range(7):
+for epoch in range(2000):
     epoch_loss = 0.0
     i = 0
     while d.has_next_batch(batch_size):
@@ -66,10 +67,10 @@ for epoch in range(7):
         logits, loss = model.train_on_batch(*batch)
         epoch_loss += loss
         i += 1
-        print batch[2]
-        print logits
-        print
-        print
+#        print batch[2]
+#        print logits
+#        print
+#        print
     print 'epoch', epoch, 'loss', (epoch_loss / (i * batch_size))
 
     d.reset()
