@@ -11,7 +11,7 @@ python main.py data/processed/ en vi tmp/checkpoint.ckpt-103 load
 """
 
 from dataset import Dataset
-from model import Seq2Seq, Seq2SeqV2, Seq2SeqV3
+from model import Seq2SeqV3
 import sys
 
 
