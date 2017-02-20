@@ -432,13 +432,13 @@ class Seq2SeqV3(object):
         self.num_layers        = config.num_layers
         self.target_vocab_size    = config.target_vocab_size
         self.max_target_len    = config.max_target_len
-        self.learning_rate    = config.learning_rate
+#        self.learning_rate    = config.learning_rate
         self.batch_size       = batch_size
 
 
         self.testing = testing
 
-
+        self.learning_rate = tf.placeholder(tf.int32, shape=(), name="lr")
         self.source     = tf.placeholder(tf.int32, [self.batch_size, self.max_source_len], name="source")
         self.source_len = tf.placeholder(tf.int32, [self.batch_size], name="source_len")
         self.target     = tf.placeholder(tf.int32, [self.batch_size, self.max_source_len], name="target")
@@ -479,7 +479,7 @@ class Seq2SeqV3(object):
 
 
 
-    def train_on_batch(self, x_batch, x_lens, y_batch, y_lens):
+    def train_on_batch(self, x_batch, x_lens, y_batch, y_lens, learning_rate=1.0):
         """ train on a minibatch of data. x and y are assumed to be 
             padded to length max_seq_len, with l reflecting the original
             lengths of the target
@@ -490,7 +490,8 @@ class Seq2SeqV3(object):
                                     self.source_len: x_lens,
                                     self.target: y_batch,
                                     self.target_len: y_lens,
-                                    self.dropout: 0.5
+                                    self.dropout: 0.5,
+                                    self.learning_rate: learning_rate
                                 })
 
         return np.argmax(logits, axis=2), loss#np.mean(loss[loss > 0])
@@ -512,7 +513,7 @@ class Seq2SeqV3(object):
                                     self.target_len: y_lens,
                                     self.dropout: 0.5
                                 })
-
+        return np.argmax(logits, axis=2), logits
 
 
     def backward_pass(self, loss):
@@ -525,9 +526,6 @@ class Seq2SeqV3(object):
 
 
     def cross_entropy_sequence_loss(self, logits, targets, seq_len):
-        print logits
-        print targets
-        print seq_len
         # dillon's loss function
         logits     = tf.unstack(logits, axis=1)[:-1]
         targets    = tf.unstack(targets, axis=1)[1:]

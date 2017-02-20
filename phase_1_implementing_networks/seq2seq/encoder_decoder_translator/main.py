@@ -58,15 +58,28 @@ print 'building model...'
 model = Seq2SeqV3(c, batch_size)
 print 'model built.'
 
+batch = d.next_batch(batch_size)    # extract x's
+pred, logits = model.predict_on_batch(*batch)
+print batch[2]
+print pred
+print logits
+d.reset()
+
+
+
 print 'training...'
+lr = c.learning_rate
 for epoch in range(2000):
     epoch_loss = 0.0
     i = 0
     while d.has_next_batch(batch_size):
         batch = d.next_batch(batch_size)
-        logits, loss = model.train_on_batch(*batch)
+        logits, loss = model.train_on_batch(*batch, learning_rate=lr)
         epoch_loss += loss
         i += 1
+        if i % 750 == 0:
+            lr = lr * 0.5
+
 #        print batch[2]
 #        print logits
 #        print
@@ -79,8 +92,9 @@ for epoch in range(2000):
 d.reset()
 
 batch = d.next_batch(batch_size)    # extract x's
-pred = model.predict_on_batch(*batch)
+pred, _ = model.predict_on_batch(*batch)
 
+print batch
 print pred
 quit()
 
