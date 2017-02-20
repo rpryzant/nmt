@@ -26,7 +26,7 @@ class config:
     target_vocab_size = 5000 + 1 # +1 for unk
     max_target_len = 50
     learning_rate = 1.0
-#    learning_rate = 0.0003
+#    learning_rate = 0.001
 
 
 data_loc = sys.argv[1]
@@ -65,27 +65,28 @@ print pred
 print logits
 d.reset()
 
-
+import numpy as np
 
 print 'training...'
 lr = c.learning_rate
-for epoch in range(2000):
+for epoch in range(20000):
     epoch_loss = 0.0
     i = 0
     while d.has_next_batch(batch_size):
         batch = d.next_batch(batch_size)
-        logits, loss = model.train_on_batch(*batch, learning_rate=lr)
+        pred, loss = model.train_on_batch(*batch, learning_rate=lr)
         epoch_loss += loss
         i += 1
         if i % 750 == 0:
             lr = lr * 0.5
 
 #        print batch[2]
-#        print logits
+#        print pred
 #        print
 #        print
     print 'epoch', epoch, 'loss', (epoch_loss / (i * batch_size))
-
+    print batch[2]
+    print pred
     d.reset()
 
 

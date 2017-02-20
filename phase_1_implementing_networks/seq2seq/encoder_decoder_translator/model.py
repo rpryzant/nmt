@@ -494,7 +494,10 @@ class Seq2SeqV3(object):
                                     self.learning_rate: learning_rate
                                 })
 
-        return np.argmax(logits, axis=2), loss#np.mean(loss[loss > 0])
+        return np.argmax(logits, axis=2), loss
+
+
+
 
 
     def predict_on_batch(self, x_batch, x_lens, y_batch, y_lens):
@@ -521,49 +524,54 @@ class Seq2SeqV3(object):
                 self.learning_rate, "SGD", clip_gradients=5.0)
 
 #        optimizer = tf.train.AdamOptimizer(self.learning_rate)
+#        trainables = tf.trainable_variables()
+#        grads, _ = tf.clip_by_global_norm(tf.gradients(loss, trainables), clip_norm=5.)
+#        train_step = optimizer.apply_gradients(zip(grads, trainables))
 #        train_step = optimizer.minimize(loss)
+
         return train_step
 
 
     def cross_entropy_sequence_loss(self, logits, targets, seq_len):
         # dillon's loss function
-        logits     = tf.unstack(logits, axis=1)[:-1]
-        targets    = tf.unstack(targets, axis=1)[1:]
-        target_mask = tf.sequence_mask(seq_len - 1, self.max_target_len - 1, dtype=tf.float32)
-        loss_weights = tf.unstack(target_mask, None, 1)                  # 0/1 weighting for variable len tgt seqs
-        loss = tf.nn.seq2seq.sequence_loss(logits, targets, loss_weights)
+#        logits     = tf.unstack(logits, axis=1)[:-1]
+#        targets    = tf.unstack(targets, axis=1)[1:]
+#        target_mask = tf.sequence_mask(seq_len - 1, self.max_target_len - 1, dtype=tf.float32)
+#        loss_weights = tf.unstack(target_mask, None, 1)                  # 0/1 weighting for variable len tgt seqs
+#        loss = tf.nn.seq2seq.sequence_loss(logits, targets, loss_weights)
+#        return loss
+
+        seq_len = seq_len - 1
+        logits = logits[:, :-1, :]
+        targets = targets[:, 1:]
+
+        losses = tf.nn.sparse_softmax_cross_entropy_with_logits(
+            logits=logits,
+            labels=targets)
+
+        # Mask out the losses we don't care about
+        loss_mask = tf.sequence_mask(seq_len, tf.shape(targets)[1], dtype=tf.float32)
+        losses = losses * loss_mask# tf.transpose(loss_mask, [1, 0])
+
+        # get mean log perplexity across all batches
+        loss = tf.reduce_sum(losses) / tf.to_float(tf.reduce_sum(seq_len))
         return loss
 
-        # denny's loss function
-        # logits = tf.transpose(logits, [1, 0, 2])
-        # targets = tf.transpose(targets, [1, 0])
-
-        # losses = tf.nn.sparse_softmax_cross_entropy_with_logits(
-        #     logits=logits,
-        #     labels=targets)
-
-        # # Mask out the losses we don't care about
-        # loss_mask = tf.sequence_mask(
-        #     tf.to_int32(seq_len), tf.to_int32(tf.shape(targets)[0]))
-        # losses = losses * tf.transpose(tf.to_float(loss_mask), [1, 0])
-
-        # return losses
 
         # my loss function
-        # targets    = targets[:,1:]            # shift targets forward 1 space
-        # logits     = logits[:,:-1,:]          # remove final token from logits so dimensions agree
-        # seq_len    = seq_len - 1              # we've shortened each sequence by 1
+#        targets    = targets[:,1:]            # shift targets forward 1 space
+#        logits     = logits[:,:-1,:]          # remove final token from logits so dimensions agree
+#        seq_len    = seq_len - 1              # we've shortened each sequence by 1#
 
-        # losses = tf.nn.sparse_softmax_cross_entropy_with_logits(
-        #     logits=logits,
-        #     labels=targets)
+#        losses = tf.nn.sparse_softmax_cross_entropy_with_logits(
+#            logits=logits,
+#            labels=targets)
 
-        # mask = tf.sequence_mask(seq_len, self.max_target_len-1, dtype=tf.float32)
-        # losses = losses * mask
+#        mask = tf.sequence_mask(seq_len, self.max_target_len-1, dtype=tf.float32)
+#        losses = losses * mask
 
 
-
-        # return losses
+#        return tf.reduce_mean(losses, axis=1)
 
 
     def encode_decode(self, source, source_len, target, target_len):
@@ -575,7 +583,7 @@ class Seq2SeqV3(object):
             decoder_cell = self.build_rnn_cell()
             decoder_output = self.run_decoder(target, 
                                             target_len, 
-                                            decoder_cell, 
+                                              decoder_cell, 
                                             encoder_output['final_state'])
 
         return decoder_output
