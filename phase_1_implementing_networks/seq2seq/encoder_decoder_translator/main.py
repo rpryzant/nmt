@@ -1,11 +1,14 @@
 """
 
 
+=== DESCRIPTION
+This is a basic seq2seq translation system without any 
+bells or whistles. The model is in good shape, but this main
+file is pretty horrid I admit. That's fine, though. If you run
+it as-is, the model will overfit on a subset of the provided data. 
 
 
-python main.py data/processed/ en vi [checkpoint prefix for saving or loading] [restore if you want to restore]
-
-python main.py data/processed/ en vi tmp/checkpoint.ckpt
+=== USAGE
 python main.py data/processed/ en vi tmp/checkpoint.ckpt-103 load
 
 """
@@ -25,8 +28,8 @@ class config:
     num_layers = 3
     target_vocab_size = 5000 + 1 # +1 for unk
     max_target_len = 50
-    learning_rate = 1.0
-#    learning_rate = 0.001
+    learning_rate = 1.0    # sgd
+#    learning_rate = 0.001  # adam
 
 
 data_loc = sys.argv[1]
@@ -97,22 +100,15 @@ pred, _ = model.predict_on_batch(*batch)
 
 print batch[2]
 print pred
-quit()
-
-for i in range(len(batch)):
-    print d.reconstruct(batch[i][0], lang1)
-    print
-    print batch[i][0]
-    print d.reconstruct(batch[i][0], lang2)
-    print
-    print pred[i]
-    print d.reconstruct(pred[i], lang2)
-
-    print '==================================='
 
 quit()
 
 
+
+
+####################################################
+# FANCIER TRAINING STUFF THAT I SCRAPPED DURING DEBUGGING IS AFTER HERE
+####################################################
 
 
 

@@ -1,13 +1,11 @@
 """
-based on http://arxiv.org/abs/1412.7449 and https://arxiv.org/abs/1508.04025 (mostly the latter)
+based on https://arxiv.org/abs/1406.1078
 
+TODO: embed start symbol at test time
 """
 
 import tensorflow as tf
 import numpy as np
-
-
-
 
 
 
@@ -205,7 +203,8 @@ class Seq2SeqV3(object):
         for t in range(target.get_shape()[1]):
             if t > 0: tf.get_variable_scope().reuse_variables()      # reuse variables after 1st iteration
             if self.testing and t == 0:
-                pass # TODO EMBED SEQUENCE START TOKEN AND STICK IT INTO S
+                # TODO EMBED SEQUENCE START TOKEN AND STICK IT INTO S
+                raise NotImplementedError
             elif not self.testing:
                 x = target_x[t]                                      # while training, feed in correct input
 
