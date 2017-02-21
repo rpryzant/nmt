@@ -1,7 +1,11 @@
 """
-based on https://arxiv.org/abs/1406.1078
+http://arxiv.org/abs/1412.7449 and https://arxiv.org/abs/1508.04025 (mostly the latter)
 
-TODO: embed start symbol at test time
+
+TODO: embed start symbol at test time - GET WORKING
+      read from model path if provided
+      attention
+      real prediction/output probabilities isntead of logits
 """
 
 import tensorflow as tf
@@ -11,7 +15,7 @@ import numpy as np
 
 
 class Seq2SeqV3(object):
-    def __init__(self, config, batch_size, testing=False, model_path=None):
+    def __init__(self, config, batch_size, dataset, testing=False, model_path=None):
         # configurations
         self.src_vocab_size       = config.src_vocab_size
         self.max_source_len       = config.max_source_len
@@ -21,6 +25,7 @@ class Seq2SeqV3(object):
         self.target_vocab_size    = config.target_vocab_size
 
         # args
+        self.dataset              = dataset
         self.batch_size           = batch_size
         self.testing              = testing
 
@@ -57,22 +62,38 @@ class Seq2SeqV3(object):
 #        self.writer =  tf.summary.FileWriter('./graphs', self.sess.graph)
 #       self.writer.close()
 
-
     def get_embeddings(self, source, target):
+        source_embedding = tf.get_variable('source_embeddings',
+                                           shape=[self.src_vocab_size, self.embedding_size])
+        source_embedded = tf.nn.embedding_lookup(source_embedding, source)
+        self.target_embedding = tf.get_variable('target_embeddings',      
+                                           shape=[self.target_vocab_size, self.embedding_size])
+        target_embedded = tf.nn.embedding_lookup(self.target_embedding, target)
+
+        return source_embedded, target_embedded
+
+    
+    def get_source_embeddings(self, source):
         """ source: [batch size, max length]    = source-side one-hot vectors
             target: [batch size, max length]    = target-side one-hot vectors
-
             returns word embeddings for each item in the source/target sequence
         """
         source_embedding = tf.get_variable('source_embeddings',
                                            shape=[self.src_vocab_size, self.embedding_size])
         source_embedded = tf.nn.embedding_lookup(source_embedding, source)
+        return source_embedded
 
-        target_embedding = tf.get_variable('target_embeddings',
+
+    def get_target_embeddings(self, target):
+        """target: [batch size, max length]    = target-side one-hot vectors
+            returns word embeddings for each item in the target sequence
+        """
+        # make instance variable so that decoder can access during test time
+        self.target_embedding = tf.get_variable('target_embeddings',      
                                            shape=[self.target_vocab_size, self.embedding_size])
-        target_embedded = tf.nn.embedding_lookup(target_embedding, target)
+        target_embedded = tf.nn.embedding_lookup(self.target_embedding, target)
 
-        return source_embedded, target_embedded
+        return target_embedded
 
 
     def train_on_batch(self, x_batch, x_lens, y_batch, y_lens, learning_rate=1.0):
@@ -93,21 +114,19 @@ class Seq2SeqV3(object):
         return np.argmax(logits, axis=2), loss
 
 
-    def predict_on_batch(self, x_batch, x_lens, y_batch, y_lens):
+    def predict_on_batch(self, x_batch, x_lens, learning_rate=1.0):
         """ predict translation for a batch of inputs
 
             TODO - only take x_batch, and feed in the start symbol instead of
                     the first word from y (which is start symbol)
         """
-        if not self.testing:
-            print "WARNING: model not in testing mode. previous outputs won't be fed back into the decoder. Reconsider"
+        assert self.testing, 'ERROR: model must be in test mode to make predictions!'
 
         logits = self.sess.run(self.decoder_output, feed_dict={
                                     self.source: x_batch,
                                     self.source_len: x_lens,
-                                    self.target: y_batch,
-                                    self.target_len: y_lens,
-                                    self.dropout: 0.5
+                                    self.dropout: 0.5,
+                                    self.learning_rate: learning_rate
                                 })
 
         return np.argmax(logits, axis=2), logits
@@ -176,6 +195,8 @@ class Seq2SeqV3(object):
 
             runs a decoder on target and returns its predictions at each timestep
         """
+        # TODO - MAKE TARGETS OPTIONAL, UNROLL FOR TARGET MAXLEN
+
         # projection to rnn space
         target_proj_W = tf.get_variable("t_proj_W",
                                         shape=[self.embedding_size, self.hidden_size],
@@ -200,11 +221,12 @@ class Seq2SeqV3(object):
         target_x = tf.unstack(target, axis=1)                        # break the target into a list of word vectors
         s = initial_state                                            # intial state = encoder's final state
         logits = []
-        for t in range(target.get_shape()[1]):
+        for t in range(self.max_source_len):
             if t > 0: tf.get_variable_scope().reuse_variables()      # reuse variables after 1st iteration
-            if self.testing and t == 0:
-                # TODO EMBED SEQUENCE START TOKEN AND STICK IT INTO S
-                raise NotImplementedError
+            if self.testing and t == 0:                               # at test time, kick things off w/start token
+                _, start_tok = self.dataset.get_start_token_indices() # get start token index for decoding lang
+                start_vec = np.full([self.batch_size], start_tok)
+                x = tf.nn.embedding_lookup(self.target_embedding, start_vec)   # look up start token
             elif not self.testing:
                 x = target_x[t]                                      # while training, feed in correct input
 
@@ -216,8 +238,9 @@ class Seq2SeqV3(object):
             logits.append(logit)
 
             if self.testing:
+                prob = tf.nn.softmax(logit)
                 x = tf.cast(tf.argmax(prob, 1), tf.int32)            # if testing, use cur pred as next input
-                x = tf.nn.embedding_lookup(target_embedding, x)
+                x = tf.nn.embedding_lookup(self.target_embedding, x)
 
         logits = tf.stack(logits)
         logits = tf.transpose(logits, [1, 0, 2])                     # get into [batch size, sequence len, vocab size]

@@ -45,6 +45,8 @@ d = Dataset(data_loc, lang1, lang2)
 'dataset done'
 d.subset(6)    # take only 2k sentances
 
+print d.get_start_token_indices()
+
 c = config()
 
 
@@ -58,16 +60,16 @@ c = config()
 #     model = Seq2Seq(c, batch_size)
 #     print 'model built.'
 print 'building model...'
-model = Seq2SeqV3(c, batch_size)
+model = Seq2SeqV3(c, batch_size, d, testing=False)
 print 'model built.'
 
-batch = d.next_batch(batch_size)    # extract x's
-pred, logits = model.predict_on_batch(*batch)
-print batch[2]
-print pred
-print logits
-d.reset()
-
+#batch = d.next_batch(batch_size)    # extract x's
+#pred, logits = model.predict_on_batch(*batch[:2])
+#print batch[2]
+#print pred
+#print logits
+#d.reset()
+#quit()
 import numpy as np
 
 print 'training...'
