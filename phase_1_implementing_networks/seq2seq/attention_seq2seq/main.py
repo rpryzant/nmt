@@ -81,6 +81,8 @@ try:
         val_losses.append(val_loss / i)
         d.reset_batch_counter()
 
+        print 'epoch', epoch, 'train loss', (train_loss / i), 'val loss', (val_loss / i)
+
 except KeyboardInterrupt:
     print 'INFO: stopped!'
 
