@@ -16,7 +16,7 @@ import numpy as np
 
 
 class Seq2SeqV3(object):
-    def __init__(self, config, batch_size, dataset, testing=False, model_path=None):
+    def __init__(self, config, dataset, testing=False, model_path=None):
         # configurations
         self.src_vocab_size       = config.src_vocab_size
         self.max_source_len       = config.max_source_len
@@ -25,10 +25,11 @@ class Seq2SeqV3(object):
         self.num_layers           = config.num_layers
         self.target_vocab_size    = config.target_vocab_size
         self.attention            = config.attention
+        self.batch_size           = config.batch_size
+        self.train_dropout        = config.dropout_rate
 
         # args
         self.dataset              = dataset
-        self.batch_size           = batch_size
         self.testing              = testing
 
         # placeholders
@@ -129,7 +130,7 @@ class Seq2SeqV3(object):
             decoder_output = self.run_decoder(target, 
                                               target_len, 
                                               decoder_cell, 
-                                              outputs if self.attention else final_state)
+                                              final_state if self.attention == 'off' else outputs)
         return decoder_output
 
 
@@ -164,7 +165,7 @@ class Seq2SeqV3(object):
 
         # decode source by initializing with encoder's final hidden state
         target_x = tf.unstack(target, axis=1)                        # break the target into a list of word vectors
-        if self.attention:
+        if not self.attention == 'off':
             s = decoder.zero_state(self.batch_size, tf.float32)
             attention_vars = self.build_attention_vars()
         else:
@@ -182,7 +183,7 @@ class Seq2SeqV3(object):
             projection = tf.matmul(x, target_proj_W) + target_proj_b # project embedding into rnn space
             h, s = decoder(projection, s)                            # s is last encoder state when t == 0
 
-            if self.attention:
+            if not self.attention == 'off':
                 h = self.attention_layer(h, encoder_result, *attention_vars)
             
             out_embedding = tf.matmul(h, out_embed_W) + out_embed_b  # project output to target embedding space
@@ -219,8 +220,8 @@ class Seq2SeqV3(object):
         """
         cell = tf.nn.rnn_cell.BasicLSTMCell(self.hidden_size, state_is_tuple=True)
         cell = tf.nn.rnn_cell.DropoutWrapper(cell, 
-                                             input_keep_prob=self.dropout,
-                                             output_keep_prob=self.dropout)
+#                                             input_keep_prob=(1-self.dropout),
+                                             output_keep_prob=(1-self.dropout))
         stacked_cell = tf.nn.rnn_cell.MultiRNNCell([cell]*self.num_layers, state_is_tuple=True)
         return stacked_cell
 
@@ -235,13 +236,21 @@ class Seq2SeqV3(object):
             """ dots h_t with each encoder state """
             encoder_states = tf.transpose(encoder_states, [1, 0, 2]) 
             return tf.reduce_sum(tf.mul(encoder_states, h_t), 2)     
+
         def bilinear_score(encoder_states, h_t):
             """ h_t * W_a, then dots the result with each encoder state """
             encoder_states = tf.transpose(encoder_states, [1, 0, 2]) 
             pre_score = tf.matmul(h_t, W_a) 
             return tf.reduce_sum(tf.multiply(encoder_states, pre_score), 2)
+
         # compute attentional weighting
-        scores = dot_score(encoder_states, h_t)
+        if self.attention == 'dot':
+            scores = dot_score(encoder_states, h_t)
+        elif self.attention == 'bilinear':
+            scores = bilinear_score(encoder_states, h_t)
+        else:
+            raise RuntimeException('ERROR: attention type %s not supported' % self.attention)
+
         a_t    = tf.nn.softmax(scores, dim=0)                      # softmax over timesteps for each batch
         a_t    = tf.expand_dims(a_t, 2)                            # turn into 3d tensor
 
@@ -281,25 +290,39 @@ class Seq2SeqV3(object):
                                     self.source_len: x_lens,
                                     self.target: y_batch,
                                     self.target_len: y_lens,
-                                    self.dropout: 0.5,
+                                    self.dropout: self.train_dropout,
                                     self.learning_rate: learning_rate
                                 })
 
         return np.argmax(logits, axis=2), loss
 
 
-    def predict_on_batch(self, x_batch, x_lens, learning_rate=1.0):
-        """ predict translation for a batch of inputs
+    def run_on_batch(self, x_batch, x_lens, y_batch, y_lens, learning_rate=1.0):
+        """ "predict" on a batch while the model is in training mode (for validation use)
+        """
+        logits, loss = self.sess.run([self.decoder_output, self.loss],
+                                feed_dict={
+                                    self.source: x_batch,
+                                    self.source_len: x_lens,
+                                    self.target: y_batch,
+                                    self.target_len: y_lens,
+                                    self.dropout: self.train_dropout,
+                                    self.learning_rate: learning_rate
+                                })
 
-            TODO - only take x_batch, and feed in the start symbol instead of
-                    the first word from y (which is start symbol)
+        return np.argmax(logits, axis=2), loss
+
+
+
+    def predict_on_batch(self, x_batch, x_lens, learning_rate=1.0):
+        """ predict translation for a batch of inputs. for testing mode only.
         """
         assert self.testing, 'ERROR: model must be in test mode to make predictions!'
 
         logits = self.sess.run(self.decoder_output, feed_dict={
                                     self.source: x_batch,
                                     self.source_len: x_lens,
-                                    self.dropout: 0.5,
+                                    self.dropout: 0.0,
                                     self.learning_rate: learning_rate
                                 })
 

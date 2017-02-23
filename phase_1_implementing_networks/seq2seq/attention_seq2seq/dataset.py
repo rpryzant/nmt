@@ -22,12 +22,15 @@ import string
 START = "_START_"
 END = "_END_"
 UNK = "_UNK_"
-VOCAB_SIZE = 5000
-MAX_SEQ_LEN = 50
 
 class Dataset:
 
-    def __init__(self, *args):
+    def __init__(self, config, *args):
+        self.config = config
+        self.vocab_size = config.src_vocab_size - 1  # config includes a +1 for unks
+        self.max_seq_len = config.max_source_len
+        self.batch_size = self.config.batch_size
+
         self.batch_index = 0
         if len(args) == 2:
             # raw corpus data
@@ -41,7 +44,8 @@ class Dataset:
             self.l1_raw, self.l1_word_index, self.l1_rev_word_index, self.l1_sentences = self.read(path, self.l1_name)
             self.l2_raw, self.l2_word_index, self.l2_rev_word_index, self.l2_sentences = self.read(path, self.l2_name)
 
-        self.max_seq_len = MAX_SEQ_LEN
+        self.N, self.train_indices, self.train_N, self.val_indices, self.val_N = self.train_test_splits()
+
         self.backups = {
                 'l1_raw': self.l1_raw, 
                 'l1_raw': self.l1_word_index, 
@@ -99,10 +103,10 @@ class Dataset:
         src_tok = [nltk.word_tokenize(x) for x in src]
 
         f = nltk.FreqDist(itertools.chain(*src_tok))
-        vocab = f.most_common(VOCAB_SIZE - 1)
+        vocab = f.most_common(self.vocab_size - 1)
 
         word_index = {w: i+1 for i, (w, f) in enumerate(vocab)}
-        word_index[UNK] = VOCAB_SIZE
+        word_index[UNK] = self.vocab_size
         reverse_index = {v: k for (k, v) in word_index.iteritems()}
 
         src_tok_unk = [[w if w in word_index else UNK for w in s] for s in src_tok]
@@ -116,16 +120,26 @@ class Dataset:
         self.l2_name = n2
 
 
-    def subset(self, N):
+    def subset(self, N_new):
         """ subset internal data for faster training
         """
-        self.l1_raw = self.l1_raw[:N]
-        self.l1_sentences = self.l1_sentences[:N]
-        self.l2_raw = self.l2_raw[:N]
-        self.l2_sentences = self.l2_sentences[:N]
+        self.l1_raw = self.l1_raw[:N_new]
+        self.l1_sentences = self.l1_sentences[:N_new]
+        self.l2_raw = self.l2_raw[:N_new]
+        self.l2_sentences = self.l2_sentences[:N_new]
+        self.N, self.train_indices, self.train_N, self.val_indices, self.val_N = self.train_test_splits()
 
 
-    def reset(self):
+    def train_test_splits(self):
+        N = len(self.l1_sentences)
+        train_indices = range(N - (N/10))
+        train_N = len(train_indices)
+        val_indices = range(train_indices[-1], N)
+        val_N = len(val_indices)
+        return N, train_indices, train_N, val_indices, val_N
+
+
+    def reset_batch_counter(self):
         """ resets batch counter to 0
         """
         self.batch_index = 0
@@ -139,7 +153,7 @@ class Dataset:
         self.l1_sentences = self.backups['l1_sentences']
         self.l2_raw = self.backups['l2_raw']
         self.l2_sentences = self.backups['l2_sentences']
-
+        self.N, self.train_indices, self.train_N, self.val_indices, self.val_N = self.train_test_splits()
 
     def get_start_token_indices(self):
         """ start token index for both languages
@@ -163,13 +177,14 @@ class Dataset:
             (language, self.l1_name, self.l2_name)
 
 
-    def has_next_batch(self, batch_size):
+    def has_next_batch(self, training=True):
         """ tests whether dataset can emit another batch
         """
-        return self.batch_index + batch_size < len(self.l1_sentences)
+        data_N = self.train_N if training else self.val_N
+        return self.batch_index + self.batch_size < data_N
 
 
-    def next_batch(self, batch_size):
+    def next_batch(self, training=True):
         """ returns next batch_size examples and their lengths
             pads, clips, and measures lengths
         """
@@ -183,17 +198,17 @@ class Dataset:
                 seq += [0] * (self.max_seq_len - ln)
             return seq, ln
 
+        index_source = self.train_indices if training else self.val_indices
+        indices = index_source[self.batch_index : self.batch_index + self.batch_size]
+        x = self.l1_sentences[indices].tolist()
+        y = self.l2_sentences[indices].tolist()
 
-        l = []
-        x = self.l1_sentences[self.batch_index : self.batch_index + batch_size].tolist()
-        y = self.l2_sentences[self.batch_index : self.batch_index + batch_size].tolist()
+        self.batch_index += self.batch_size
 
-        self.batch_index += batch_size
-
-        x_batch = [clip_pad(x[i], self.l1_word_index)[0] for i in range(batch_size)]
+        x_batch = [clip_pad(x[i], self.l1_word_index)[0] for i in range(self.batch_size)]
         x_lens = np.count_nonzero(np.array(x_batch), axis=1).tolist()
 
-        y_batch = [clip_pad(y[i], self.l2_word_index)[0] for i in range(batch_size)]
+        y_batch = [clip_pad(y[i], self.l2_word_index)[0] for i in range(self.batch_size)]
         y_lens = np.count_nonzero(np.array(y_batch), axis=1).tolist()
 
         return x_batch, x_lens, y_batch, y_lens
