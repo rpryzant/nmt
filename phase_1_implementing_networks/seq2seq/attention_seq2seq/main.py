@@ -29,6 +29,7 @@ class config:
     target_vocab_size = 5000 + 1 # +1 for unk
     max_target_len = 50
     learning_rate = 1.0    # sgd
+    attention = True
 #    learning_rate = 0.001  # adam
 
 
@@ -43,7 +44,7 @@ batch_size = 5
 print 'building dataset...'
 d = Dataset(data_loc, lang1, lang2)
 'dataset done'
-d.subset(6)    # take only 2k sentances
+d.subset(6)    # take only 6 sentances
 
 print d.get_start_token_indices()
 

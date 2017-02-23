@@ -2,10 +2,11 @@
 http://arxiv.org/abs/1412.7449 and https://arxiv.org/abs/1508.04025 (mostly the latter)
 
 
-TODO: embed start symbol at test time - GET WORKING
-      read from model path if provided
+TODO: read from model path if provided
       attention
       real prediction/output probabilities isntead of logits
+      rm batch_size as instance var
+      other attentions other than dot
 """
 
 import tensorflow as tf
@@ -23,6 +24,7 @@ class Seq2SeqV3(object):
         self.hidden_size          = config.hidden_size
         self.num_layers           = config.num_layers
         self.target_vocab_size    = config.target_vocab_size
+        self.attention            = config.attention
 
         # args
         self.dataset              = dataset
@@ -63,6 +65,10 @@ class Seq2SeqV3(object):
 #       self.writer.close()
 
     def get_embeddings(self, source, target):
+        """ source: [batch size, max length]    = source-side one-hot vectors
+            target: [batch size, max length]    = target-side one-hot vectors
+            returns word embeddings for each item in the source/target sequence
+        """
         source_embedding = tf.get_variable('source_embeddings',
                                            shape=[self.src_vocab_size, self.embedding_size])
         source_embedded = tf.nn.embedding_lookup(source_embedding, source)
@@ -71,66 +77,6 @@ class Seq2SeqV3(object):
         target_embedded = tf.nn.embedding_lookup(self.target_embedding, target)
 
         return source_embedded, target_embedded
-
-    
-    def get_source_embeddings(self, source):
-        """ source: [batch size, max length]    = source-side one-hot vectors
-            target: [batch size, max length]    = target-side one-hot vectors
-            returns word embeddings for each item in the source/target sequence
-        """
-        source_embedding = tf.get_variable('source_embeddings',
-                                           shape=[self.src_vocab_size, self.embedding_size])
-        source_embedded = tf.nn.embedding_lookup(source_embedding, source)
-        return source_embedded
-
-
-    def get_target_embeddings(self, target):
-        """target: [batch size, max length]    = target-side one-hot vectors
-            returns word embeddings for each item in the target sequence
-        """
-        # make instance variable so that decoder can access during test time
-        self.target_embedding = tf.get_variable('target_embeddings',      
-                                           shape=[self.target_vocab_size, self.embedding_size])
-        target_embedded = tf.nn.embedding_lookup(self.target_embedding, target)
-
-        return target_embedded
-
-
-    def train_on_batch(self, x_batch, x_lens, y_batch, y_lens, learning_rate=1.0):
-        """ train on a minibatch of data. x and y are assumed to be 
-            padded to length max_seq_len, with [x/y]_lens reflecting
-            the original lengths of each sequence
-        """
-        _, logits, loss = self.sess.run([self.train_step, self.decoder_output, self.loss],
-                                feed_dict={
-                                    self.source: x_batch,
-                                    self.source_len: x_lens,
-                                    self.target: y_batch,
-                                    self.target_len: y_lens,
-                                    self.dropout: 0.5,
-                                    self.learning_rate: learning_rate
-                                })
-
-        return np.argmax(logits, axis=2), loss
-
-
-    def predict_on_batch(self, x_batch, x_lens, learning_rate=1.0):
-        """ predict translation for a batch of inputs
-
-            TODO - only take x_batch, and feed in the start symbol instead of
-                    the first word from y (which is start symbol)
-        """
-        assert self.testing, 'ERROR: model must be in test mode to make predictions!'
-
-        logits = self.sess.run(self.decoder_output, feed_dict={
-                                    self.source: x_batch,
-                                    self.source_len: x_lens,
-                                    self.dropout: 0.5,
-                                    self.learning_rate: learning_rate
-                                })
-
-        return np.argmax(logits, axis=2), logits
-
 
     def backward_pass(self, loss):
         """ use the given loss to construct a training step 
@@ -176,27 +122,27 @@ class Seq2SeqV3(object):
         """
         with tf.variable_scope('encoder'):
             encoder_cell = self.build_rnn_cell()        
-            encoder_output = self.run_encoder(source, source_len, encoder_cell)
+            outputs, final_state = self.run_encoder(source, source_len, encoder_cell)
 
         with tf.variable_scope('decoder'):
             decoder_cell = self.build_rnn_cell()
             decoder_output = self.run_decoder(target, 
                                               target_len, 
                                               decoder_cell, 
-                                              encoder_output['final_state'])
+                                              outputs if self.attention else final_state)
         return decoder_output
 
 
-    def run_decoder(self, target, target_len, decoder, initial_state):
+    def run_decoder(self, target, target_len, decoder, encoder_result):
         """ target: [batch size, sequence len]
             target_len: [batch_size]  = pre-padded target lengths
             decoder: RNNCell 
-            initial_state: tuple([batch size, hidden state size]  * batch size  )
+            encoder_result: 
+                [batch_size, max_time, hidden state size] (encoder outputs)  if attention
+                [batch size, hidden state size]       (encoder final state)  otherwisea
 
             runs a decoder on target and returns its predictions at each timestep
         """
-        # TODO - MAKE TARGETS OPTIONAL, UNROLL FOR TARGET MAXLEN
-
         # projection to rnn space
         target_proj_W = tf.get_variable("t_proj_W",
                                         shape=[self.embedding_size, self.hidden_size],
@@ -216,10 +162,13 @@ class Seq2SeqV3(object):
         out_b = tf.get_variable("bo", shape=[self.target_vocab_size],
                                 initializer=tf.contrib.layers.xavier_initializer())
 
-
         # decode source by initializing with encoder's final hidden state
         target_x = tf.unstack(target, axis=1)                        # break the target into a list of word vectors
-        s = initial_state                                            # intial state = encoder's final state
+        if self.attention:
+            s = decoder.zero_state(self.batch_size, tf.float32)
+            attention_vars = self.build_attention_vars()
+        else:
+            s = encoder_result 
         logits = []
         for t in range(self.max_source_len):
             if t > 0: tf.get_variable_scope().reuse_variables()      # reuse variables after 1st iteration
@@ -232,6 +181,9 @@ class Seq2SeqV3(object):
 
             projection = tf.matmul(x, target_proj_W) + target_proj_b # project embedding into rnn space
             h, s = decoder(projection, s)                            # s is last encoder state when t == 0
+
+            if self.attention:
+                h = self.attention_layer(h, encoder_result, *attention_vars)
             
             out_embedding = tf.matmul(h, out_embed_W) + out_embed_b  # project output to target embedding space
             logit = tf.matmul(out_embedding, out_W) + out_b 
@@ -254,12 +206,12 @@ class Seq2SeqV3(object):
 
             runs the cell inputs for source-len timesteps
         """
-        outputs, state = tf.nn.dynamic_rnn(
+        outputs, final_state = tf.nn.dynamic_rnn(
             cell=cell,
             inputs=source,
             sequence_length=source_len,
             dtype=tf.float32)
-        return {'outputs': outputs, 'final_state': state}
+        return outputs, final_state
 
 
     def build_rnn_cell(self):
@@ -271,6 +223,89 @@ class Seq2SeqV3(object):
                                              output_keep_prob=self.dropout)
         stacked_cell = tf.nn.rnn_cell.MultiRNNCell([cell]*self.num_layers, state_is_tuple=True)
         return stacked_cell
+
+
+    def attention_layer(self, h_t, encoder_states, W_a, W_c, b_c):
+        """ dot-product attentional layer as described in https://arxiv.org/abs/1508.04025
+            -h_t : [batch size, hidden size]   : current decoder hidden state
+            -encoder_states [batch size, max len, hidden size] : history of encoder activity
+            - W_a, W_c, b_c : weights for attention
+        """
+        def dot_score(encoder_states, h_t):  # returns [50, 5]
+            """ dots h_t with each encoder state """
+            encoder_states = tf.transpose(encoder_states, [1, 0, 2]) 
+            return tf.reduce_sum(tf.mul(encoder_states, h_t), 2)     
+        def bilinear_score(encoder_states, h_t):
+            """ h_t * W_a, then dots the result with each encoder state """
+            encoder_states = tf.transpose(encoder_states, [1, 0, 2]) 
+            pre_score = tf.matmul(h_t, W_a) 
+            return tf.reduce_sum(tf.multiply(encoder_states, pre_score), 2)
+        # compute attentional weighting
+        scores = dot_score(encoder_states, h_t)
+        a_t    = tf.nn.softmax(scores, dim=0)                      # softmax over timesteps for each batch
+        a_t    = tf.expand_dims(a_t, 2)                            # turn into 3d tensor
+
+        #          ( encoder )      ( a_t )
+        # perform [hidden, time] X [time, 1] slice matmuls to get weighted average of 
+        # encoder states, weighted by a_t
+        a_t = tf.transpose(a_t, [1, 0, 2])                           # move batch to 1st dim, time to 2nd dim
+        encoder_states = tf.transpose(encoder_states, [0, 2, 1])     # move batch to 1st dim, time to last dim
+        c_t    = tf.batch_matmul(encoder_states, a_t)  
+        c_t    = tf.squeeze(c_t)
+
+        # concat h_t and c_t, then send through fc layer to get final h
+        h_new  = tf.tanh(tf.matmul(tf.concat(1, [h_t, c_t]), W_c) + b_c)
+        return h_new
+
+
+    def build_attention_vars(self):
+        """ builds all the matrices needed for attention
+        """
+        W_a = tf.get_variable("W_a", shape=[self.hidden_size, self.hidden_size],
+                                   initializer=tf.contrib.layers.xavier_initializer())
+        W_c = tf.get_variable("W_c", shape=[2*self.hidden_size, self.hidden_size],
+                                   initializer=tf.contrib.layers.xavier_initializer())
+        b_c = tf.get_variable("b_c", shape=[self.hidden_size],
+                                   initializer=tf.contrib.layers.xavier_initializer())
+        return W_a, W_c, b_c
+
+
+    def train_on_batch(self, x_batch, x_lens, y_batch, y_lens, learning_rate=1.0):
+        """ train on a minibatch of data. x and y are assumed to be 
+            padded to length max_seq_len, with [x/y]_lens reflecting
+            the original lengths of each sequence
+        """
+        _, logits, loss = self.sess.run([self.train_step, self.decoder_output, self.loss],
+                                feed_dict={
+                                    self.source: x_batch,
+                                    self.source_len: x_lens,
+                                    self.target: y_batch,
+                                    self.target_len: y_lens,
+                                    self.dropout: 0.5,
+                                    self.learning_rate: learning_rate
+                                })
+
+        return np.argmax(logits, axis=2), loss
+
+
+    def predict_on_batch(self, x_batch, x_lens, learning_rate=1.0):
+        """ predict translation for a batch of inputs
+
+            TODO - only take x_batch, and feed in the start symbol instead of
+                    the first word from y (which is start symbol)
+        """
+        assert self.testing, 'ERROR: model must be in test mode to make predictions!'
+
+        logits = self.sess.run(self.decoder_output, feed_dict={
+                                    self.source: x_batch,
+                                    self.source_len: x_lens,
+                                    self.dropout: 0.5,
+                                    self.learning_rate: learning_rate
+                                })
+
+        return np.argmax(logits, axis=2), logits
+
+
 
 
 
