@@ -26,7 +26,7 @@ class config:
     src_vocab_size = 5000 + 1 # +1 for unk
     max_source_len = 50
     embedding_size = 64
-    batch_size = 64
+    batch_size = 5
     hidden_size = 128
     dropout_rate = 0.5
     num_layers = 3
@@ -49,7 +49,7 @@ c.attention = attention_type
 print 'INFO: building dataset...'
 d = Dataset(c, data_loc, lang1, lang2)
 print 'INFO: dataset built.'
-#d.subset(5000)    # take only 6 sentances
+d.subset(6)    # take only 6 sentances
 
 
 print 'INFO: building model...'
@@ -83,7 +83,7 @@ try:
             i += 1.0
 #            print 'train', i, loss
             train_loss += loss
-        train_loss /= i
+        train_loss /= (i or 1)
         train_losses.append(train_loss)
         d.reset_batch_counter()
 
@@ -95,7 +95,7 @@ try:
             val_loss += loss
             i += 1.0
 #            print 'val', i, loss
-        val_loss /= i
+        val_loss /= (i or 1)
         val_losses.append(val_loss)
         d.reset_batch_counter()
 
@@ -108,8 +108,8 @@ try:
             print 'INFO: plot saved to %s' % filename
 
             print 'INFO: saving checkpoint...'
-            model.save_checkpout(checkpoint_dir + '/checkpoint')
-            print 'INFO: checkpoint saved!'
+            model.save_checkpoint(checkpoint_dir + '/checkpoint')
+            print 'INFO: checkpoint saved to %s' % (checkpoint_dir + '/checkpoint')
 
         print 'INFO: epoch,', epoch, 'train loss,', train_loss, 'val loss,', val_loss, 'time, ', (time.time() - start)
 
@@ -118,7 +118,7 @@ except KeyboardInterrupt:
 
 finally:
     print 'INFO: generating plots...'
-    filename = 'losses.png'
+    filename = 'final_losses.png'
     utils.lineplot(filename, 'Train/Val Losses', 'epoch', 'Loss', 
                     [(train_losses, 'train'), (val_losses, 'val')])
     print 'INFO: plot saved to %s' % filename
