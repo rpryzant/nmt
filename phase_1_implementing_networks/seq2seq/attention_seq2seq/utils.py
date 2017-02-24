@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 
 
-def lineplot(filename, title, xlab, ylab, *curves):
+def lineplot(filename, title, xlab, ylab, curves):
     """ makes a line plot
         - title: plot title
         - filename: filename to use

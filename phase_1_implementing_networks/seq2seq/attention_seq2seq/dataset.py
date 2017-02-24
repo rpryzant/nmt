@@ -44,7 +44,7 @@ class Dataset:
             self.l1_raw, self.l1_word_index, self.l1_rev_word_index, self.l1_sentences = self.read(path, self.l1_name)
             self.l2_raw, self.l2_word_index, self.l2_rev_word_index, self.l2_sentences = self.read(path, self.l2_name)
 
-        self.N, self.train_indices, self.train_N, self.val_indices, self.val_N = self.train_test_splits()
+        self.make_train_test_splits()
 
         self.backups = {
                 'l1_raw': self.l1_raw, 
@@ -127,16 +127,15 @@ class Dataset:
         self.l1_sentences = self.l1_sentences[:N_new]
         self.l2_raw = self.l2_raw[:N_new]
         self.l2_sentences = self.l2_sentences[:N_new]
-        self.N, self.train_indices, self.train_N, self.val_indices, self.val_N = self.train_test_splits()
+        self.make_train_test_splits()
 
 
-    def train_test_splits(self):
-        N = len(self.l1_sentences)
-        train_indices = range(N - (N/10))
-        train_N = len(train_indices)
-        val_indices = range(train_indices[-1], N)
-        val_N = len(val_indices)
-        return N, train_indices, train_N, val_indices, val_N
+    def make_train_test_splits(self):
+        self.N = len(self.l1_sentences)
+        self.train_indices = range(N - (N/10))
+        self.train_N = len(train_indices)
+        self.val_indices = range(train_indices[-1], N)
+        self.val_N = len(val_indices)
 
 
     def reset_batch_counter(self):
@@ -153,7 +152,7 @@ class Dataset:
         self.l1_sentences = self.backups['l1_sentences']
         self.l2_raw = self.backups['l2_raw']
         self.l2_sentences = self.backups['l2_sentences']
-        self.N, self.train_indices, self.train_N, self.val_indices, self.val_N = self.train_test_splits()
+        self.make_train_test_splits()
 
     def get_start_token_indices(self):
         """ start token index for both languages
