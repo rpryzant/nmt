@@ -4,3 +4,4 @@ install:
 	seq/bin/pip install --ignore-installed nltk
 	seq/bin/pip install --ignore-installed numpy
 	seq/bin/pip install --ignore-installed tqdm
+	seq/bin/pip install --ignore-installed matplotlib

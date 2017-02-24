@@ -11,7 +11,7 @@ TODO: read from model path if provided
 
 import tensorflow as tf
 import numpy as np
-
+import os
 
 
 
@@ -60,10 +60,20 @@ class Seq2SeqV3(object):
 
         # tf boilerplate
         self.check = tf.add_check_numerics_ops()
-        self.sess = tf.Session()
+        self.global_step = tf.Variable(0, dtype=tf.int32, trainable=False, name='global_step')
+        os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+        gpu_options = tf.GPUOptions(allow_growth=True)
+        self.sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options, allow_soft_placement=True))
         self.sess.run(tf.global_variables_initializer())
-#        self.writer =  tf.summary.FileWriter('./graphs', self.sess.graph)
-#       self.writer.close()
+
+        self.saver = tf.train.Saver()
+        if model_path is not None:
+            self.saver.restore(self.sess, model_path)
+
+
+    def save_checkpoint(self, path):
+        self.saver.save(self.sess, path, global_step=self.global_step)
+
 
     def get_embeddings(self, source, target):
         """ source: [batch size, max length]    = source-side one-hot vectors
@@ -83,8 +93,11 @@ class Seq2SeqV3(object):
         """ use the given loss to construct a training step 
             NOTE: Using SGD instead of adagrad or adam because those don't seem to work
         """
-        train_step = tf.contrib.layers.optimize_loss(self.loss, None,
-                self.learning_rate, "SGD", clip_gradients=5.0)
+        train_step = tf.contrib.layers.optimize_loss(self.loss, 
+                                                     global_step=self.global_step,
+                                                     learning_rate=self.learning_rate, 
+                                                     optimizer="SGD", 
+                                                     clip_gradients=5.0)
         return train_step
 
 

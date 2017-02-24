@@ -19,6 +19,8 @@ import sys
 import utils
 import time
 from tqdm import tqdm
+import os
+
 
 class config:
     src_vocab_size = 5000 + 1 # +1 for unk
@@ -31,17 +33,18 @@ class config:
     target_vocab_size = 5000 + 1 # +1 for unk
     max_target_len = 50
     learning_rate = 1.0    # sgd
-    attention = 'bilinear'       # accepted values: [off, dot, bilinear]
+    attention = 'dot'       # accepted values: [off, dot, bilinear]
 #    learning_rate = 0.001  # adam
 
 
 data_loc = sys.argv[1]
 lang1 = sys.argv[2]
 lang2 = sys.argv[3]
-model_path = sys.argv[4]
-restore = sys.argv[5] if len(sys.argv) == 6 else None
+attention_type = sys.argv[4]
+epochs = int(sys.argv[5])
 
 c = config()
+c.attention = attention_type
 
 print 'INFO: building dataset...'
 d = Dataset(c, data_loc, lang1, lang2)
@@ -54,14 +57,22 @@ model = Seq2SeqV3(c, d, testing=False)
 print 'INFO: model built.'
 
 
+print 'INFO: building checkpoint dir...'
+cur_dir = os.path.dirname(os.path.realpath(__file__)) + '/'
+if not os.path.exists(cur_dir + 'checkpoints'):
+    os.mkdir(cur_dir + 'checkpoints')
+checkpoint_dir = cur_dir + 'checkpoints/%s_%s_%s' % (lang1, lang2, attention_type)
+if not os.path.exists(checkpoint_dir):
+    os.mkdir(checkpoint_dir)
+print 'INFO: checkpoints ready to go'
+
 
 print 'INFO: training...'
 lr = c.learning_rate
-
 train_losses = []
 val_losses = []
 try:
-    for epoch in range(20000):
+    for epoch in range(epochs):
         start = time.time()
 
         # training
@@ -88,7 +99,19 @@ try:
         val_losses.append(val_loss)
         d.reset_batch_counter()
 
-        print 'epoch,', epoch, 'train loss,', train_loss, 'val loss,', val_loss, 'time, ', (time.time() - start)
+        if epoch > 0 and epoch % 10 == 0:
+            lr *= 0.95
+            print 'INFO: generating plots...'
+            filename = checkpoint_dir + '/%s-%s.png' % (attention_type, str(epoch))
+            utils.lineplot(filename, 'Train/Val Losses', 'epoch', 'Loss', 
+                            [(train_losses, 'train'), (val_losses, 'val')])
+            print 'INFO: plot saved to %s' % filename
+
+            print 'INFO: saving checkpoint...'
+            model.save_checkpout(checkpoint_dir + '/checkpoint')
+            print 'INFO: checkpoint saved!'
+
+        print 'INFO: epoch,', epoch, 'train loss,', train_loss, 'val loss,', val_loss, 'time, ', (time.time() - start)
 
 except KeyboardInterrupt:
     print 'INFO: stopped!'
