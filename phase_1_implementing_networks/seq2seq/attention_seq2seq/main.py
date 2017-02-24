@@ -17,19 +17,21 @@ from dataset import Dataset
 from model import Seq2SeqV3
 import sys
 import utils
+import time
+from tqdm import tqdm
 
 class config:
     src_vocab_size = 5000 + 1 # +1 for unk
     max_source_len = 50
     embedding_size = 64
-    batch_size = 5
+    batch_size = 64
     hidden_size = 128
     dropout_rate = 0.5
     num_layers = 3
     target_vocab_size = 5000 + 1 # +1 for unk
     max_target_len = 50
     learning_rate = 1.0    # sgd
-    attention = 'off'       # accepted values: [off, dot, bilinear]
+    attention = 'bilinear'       # accepted values: [off, dot, bilinear]
 #    learning_rate = 0.001  # adam
 
 
@@ -44,7 +46,7 @@ c = config()
 print 'INFO: building dataset...'
 d = Dataset(c, data_loc, lang1, lang2)
 print 'INFO: dataset built.'
-#d.subset(6)    # take only 6 sentances
+#d.subset(5000)    # take only 6 sentances
 
 
 print 'INFO: building model...'
@@ -60,28 +62,33 @@ train_losses = []
 val_losses = []
 try:
     for epoch in range(20000):
+        start = time.time()
+
         # training
         i = 0
         train_loss = 0.0
-        while d.has_next_batch(training=True):
-            i += 1
-            batch = d.next_batch(training=True)
+        for batch in tqdm(d.batch_iter(training=True), total=d.train_N):
             pred, loss = model.train_on_batch(*batch, learning_rate=lr)
+            i += 1.0
+#            print 'train', i, loss
             train_loss += loss
-        train_losses.append(train_loss / i)
+        train_loss /= i
+        train_losses.append(train_loss)
         d.reset_batch_counter()
 
         # validation
         i = 0.0
         val_loss = 0.0
-        while d.has_next_batch(training=False):
-            batch = d.next_batch(training=False)
+        for batch in tqdm(d.batch_iter(training=False), total=d.val_N):
             pred, loss = model.run_on_batch(*batch, learning_rate=lr)
             val_loss += loss
-        val_losses.append(val_loss / i)
+            i += 1.0
+#            print 'val', i, loss
+        val_loss /= i
+        val_losses.append(val_loss)
         d.reset_batch_counter()
 
-        print 'epoch', epoch, 'train loss', (train_loss / i), 'val loss', (val_loss / i)
+        print 'epoch,', epoch, 'train loss,', train_loss, 'val loss,', val_loss, 'time, ', (time.time() - start)
 
 except KeyboardInterrupt:
     print 'INFO: stopped!'
@@ -94,4 +101,4 @@ finally:
     print 'INFO: plot saved to %s' % filename
 
 
-
+quit()

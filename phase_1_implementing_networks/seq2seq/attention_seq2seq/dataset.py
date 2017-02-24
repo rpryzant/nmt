@@ -132,10 +132,10 @@ class Dataset:
 
     def make_train_test_splits(self):
         self.N = len(self.l1_sentences)
-        self.train_indices = range(N - (N/10))
-        self.train_N = len(train_indices)
-        self.val_indices = range(train_indices[-1], N)
-        self.val_N = len(val_indices)
+        self.train_indices = range(self.N - (self.N/10))
+        self.train_N = len(self.train_indices)
+        self.val_indices = range(self.train_indices[-1], self.N)
+        self.val_N = len(self.val_indices)
 
 
     def reset_batch_counter(self):
@@ -174,6 +174,11 @@ class Dataset:
             return ' '.join(self.l2_rev_word_index.get(x, '') for x in seq)
         print 'ERROR: language %s unrecognized! Supported languages are %s and %s.' % \
             (language, self.l1_name, self.l2_name)
+
+
+    def batch_iter(self, training=True):
+        while self.has_next_batch(training):
+            yield self.next_batch(training)
 
 
     def has_next_batch(self, training=True):
