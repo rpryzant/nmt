@@ -9,7 +9,7 @@ it as-is, the model will overfit on a subset of the provided data.
 
 
 === USAGE
-python main.py data/processed/ en vi tmp/checkpoint.ckpt-103 load
+python main.py data/processed/ en vi dot 500
 
 """
 import numpy as np
