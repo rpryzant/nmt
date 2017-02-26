@@ -17,9 +17,9 @@ class Config:
     learning_rate = 1.0    # sgd
     attention = 'dot'       # accepted values: [off, dot, bilinear]
     max_grad_norm = 5.0
-#    checkpoint_dir = 'checkpoints_mine'
-    checkpoint_dir = 'checkpoints_dillons'
-#    learning_rate = 0.001  # adam
+    checkpoint_dir = 'checkpoints_mine'
+#    checkpoint_dir = 'checkpoints_dillons'
+
 
 
 def lineplot(filename, title, xlab, ylab, curves):

@@ -52,7 +52,7 @@ class Seq2SeqV3(object):
         self.testing              = testing
 
         # placeholders
-        self.learning_rate = tf.placeholder(tf.int32, shape=(), name="lr")
+        self.learning_rate = tf.placeholder(tf.float32, shape=(), name="lr")
         self.source     = tf.placeholder(tf.int32, [self.batch_size, self.max_source_len], name="source")
         self.source_len = tf.placeholder(tf.int32, [self.batch_size], name="source_len")
         self.target     = tf.placeholder(tf.int32, [self.batch_size, self.max_source_len], name="target")
