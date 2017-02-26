@@ -4,6 +4,24 @@ import matplotlib.pyplot as plt
 
 
 
+class Config:
+    src_vocab_size = 50000 + 1 # +1 for unk
+    max_source_len = 30
+    embedding_size = 256
+    batch_size = 128
+    hidden_size = 1024
+    dropout_rate = 0.2
+    num_layers = 3
+    target_vocab_size = 50000 + 1 # +1 for unk
+    max_target_len = 30
+    learning_rate = 1.0    # sgd
+    attention = 'dot'       # accepted values: [off, dot, bilinear]
+    max_grad_norm = 5.0
+#    checkpoint_dir = 'checkpoints_mine'
+    checkpoint_dir = 'checkpoints_dillons'
+#    learning_rate = 0.001  # adam
+
+
 def lineplot(filename, title, xlab, ylab, curves):
     """ makes a line plot
         - title: plot title
@@ -20,3 +38,5 @@ def lineplot(filename, title, xlab, ylab, curves):
     plt.title(title)
     plt.savefig(filename)
     plt.close()
+
+

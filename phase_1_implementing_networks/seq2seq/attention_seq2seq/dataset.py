@@ -17,7 +17,7 @@ import nltk
 import itertools
 import numpy as np
 import string
-
+import utils
 
 START = "_START_"
 END = "_END_"
@@ -95,6 +95,7 @@ class Dataset:
               3) a list of sentances with words converted to their index 
         
             note that 0 is a special index reserved for for unknown/out-of-dictionary words
+                 also, sequences longer than the max len are discarded
         """
         f = open(path, 'rb')
         src = [s.translate(None, string.punctuation) for s in f]
@@ -131,11 +132,19 @@ class Dataset:
 
 
     def make_train_test_splits(self):
-        self.N = len(self.l1_sentences)
-        self.train_indices = range(self.N - (self.N/10))
-        self.train_N = len(self.train_indices)
-        self.val_indices = range(self.train_indices[-1], self.N)
-        self.val_N = len(self.val_indices)
+        indices = []
+        for i in range(len(self.l1_sentences)): # throw out stuff past max len
+            if len(self.l1_sentences[i]) < self.max_seq_len and len(self.l2_sentences[i]) < self.max_seq_len:
+                indices.append(i)
+        valid_indices = np.array(indices)
+
+        self.N = len(valid_indices)
+
+        self.train_N = self.N - (self.N/20)
+        self.train_indices = valid_indices[:self.train_N]
+
+        self.val_N = self.N - self.train_N
+        self.val_indices = valid_indices[-self.val_N:]
 
 
     def reset_batch_counter(self):
@@ -194,7 +203,8 @@ class Dataset:
         """
         def clip_pad(seq, dict):
             ln = len(seq)
-            if ln > self.max_seq_len:
+            if ln > self.max_seq_len: # should be ignored
+                print 'YOU SHOULDNT BE HERE'
                 seq = seq[:self.max_seq_len-1]
                 seq += [dict[END]]
                 ln = self.max_seq_len
@@ -202,17 +212,28 @@ class Dataset:
                 seq += [0] * (self.max_seq_len - ln)
             return seq, ln
 
+        def pre_pad(lst, pad_elt):
+            nlst = [pad_elt]*self.max_seq_len
+            nlst[(self.max_seq_len - len(lst)):] = lst
+            return nlst
+
+        def post_pad(lst, pad_elt):
+            nlst = [pad_elt]*self.max_seq_len
+            nlst[:len(lst)] = lst
+            return nlst
+
         index_source = self.train_indices if training else self.val_indices
         indices = index_source[self.batch_index : self.batch_index + self.batch_size]
         x = self.l1_sentences[indices].tolist()
         y = self.l2_sentences[indices].tolist()
 
         self.batch_index += self.batch_size
-
-        x_batch = [clip_pad(x[i], self.l1_word_index)[0] for i in range(self.batch_size)]
+        # REVERSED INPUT
+        x_batch = [pre_pad(x[i][::-1], 0) for i in range(self.batch_size)]
+#        x_batch = [clip_pad(x[i][::-1], self.l1_word_index)[0] for i in range(self.batch_size)]
         x_lens = np.count_nonzero(np.array(x_batch), axis=1).tolist()
 
-        y_batch = [clip_pad(y[i], self.l2_word_index)[0] for i in range(self.batch_size)]
+        y_batch = [post_pad(y[i], 0) for i in range(self.batch_size)]
         y_lens = np.count_nonzero(np.array(y_batch), axis=1).tolist()
 
         return x_batch, x_lens, y_batch, y_lens
@@ -222,8 +243,9 @@ class Dataset:
 
 
 if __name__ == "__main__":
-    d = Dataset(*tuple(sys.argv[1:]))
-    d.write('./data/processed', 'en', 'vi')
+    c = utils.Config()
+    d = Dataset(c, *tuple(sys.argv[1:]))
+    d.write('./data/processed_30', 'en', 'vi')
 
 
 #    while d.has_next_batch(3):
