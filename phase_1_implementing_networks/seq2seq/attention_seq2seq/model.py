@@ -32,30 +32,29 @@ class BaseModel():
 
 
 
-
 class Seq2SeqV3(object):
     def __init__(self, config, dataset, testing=False, model_path=None):
-        # configurations
         self.src_vocab_size       = config.src_vocab_size
+        self.target_vocab_size    = config.target_vocab_size
         self.max_source_len       = config.max_source_len
+        self.max_target_len       = config.max_target_len
+
         self.embedding_size       = config.embedding_size
         self.hidden_size          = config.hidden_size
         self.num_layers           = config.num_layers
-        self.target_vocab_size    = config.target_vocab_size
         self.attention            = config.attention
+
         self.batch_size           = config.batch_size
         self.train_dropout        = config.dropout_rate
         self.max_grad_norm        = config.max_grad_norm
 
-        # args
         self.dataset              = dataset
         self.testing              = testing
 
-        # placeholders
         self.learning_rate = tf.placeholder(tf.float32, shape=(), name="lr")
         self.source     = tf.placeholder(tf.int32, [self.batch_size, self.max_source_len], name="source")
         self.source_len = tf.placeholder(tf.int32, [self.batch_size], name="source_len")
-        self.target     = tf.placeholder(tf.int32, [self.batch_size, self.max_source_len], name="target")
+        self.target     = tf.placeholder(tf.int32, [self.batch_size, self.max_target_len], name="target")
         self.target_len = tf.placeholder(tf.int32, [self.batch_size], name="target_len")
         self.dropout    = tf.placeholder(tf.float32, name="dropout")
         self.global_step = tf.Variable(0, dtype=tf.int32, trainable=False, name='global_step')
@@ -82,7 +81,6 @@ class Seq2SeqV3(object):
         gpu_options = tf.GPUOptions(allow_growth=True)
         self.sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options, allow_soft_placement=True))
         self.sess.run(tf.global_variables_initializer())
-#        self.check = tf.add_check_numerics_ops()
 
         self.saver = tf.train.Saver()
         if model_path is not None:
@@ -100,7 +98,6 @@ class Seq2SeqV3(object):
             self.saver.restore(self.sess, ckpt.model_checkpoint_path)
         else:
             raise Exception("[!] No checkpoint found")
-
 
 
     def get_embeddings(self, source, target):
@@ -121,14 +118,6 @@ class Seq2SeqV3(object):
         """ use the given loss to construct a training step 
             NOTE: Using SGD instead of adagrad or adam because those don't seem to work
         """
-        # TODO - refactor
-        # optimizer = tf.train.GradientDescentOptimizer(self.learning_rate)
-        # grads = optimizer.compute_gradients(loss)      # (grad, trainable) tuples
-        # grads2, _ = tf.clip_by_global_norm([x[0] for x in grads], clip_norm=self.max_grad_norm)
-        # self.grad_norm = tf.global_norm(grads2 or [x[0] for x in grads])
-        # grad_var_pairs = [(g, t) for (g, (_, t)) in zip(grads2, grads)]
-        # train_op = optimizer.apply_gradients(grad_var_pairs, global_step=self.global_step)
-        # return train_op
         train_step = tf.contrib.layers.optimize_loss(self.loss, 
                                                       self.global_step,
                                                       learning_rate=self.learning_rate, 
@@ -222,7 +211,7 @@ class Seq2SeqV3(object):
             attention_vars = self.build_attention_vars()
 
         logits = []
-        for t in range(self.max_source_len):
+        for t in range(self.max_target_len):
             if t > 0: tf.get_variable_scope().reuse_variables()      # reuse variables after 1st iteration
             if self.testing and t == 0:                               # at test time, kick things off w/start token
                 _, start_tok = self.dataset.get_start_token_indices() # get start token index for decoding lang
@@ -377,241 +366,6 @@ class Seq2SeqV3(object):
                                 })
 
         return np.argmax(logits, axis=2), logits
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-class AttentionNN(object):
-    def __init__(self, config, dataset, testing=False, model_path=None):
-        self.hidden_size   = config.hidden_size
-        self.num_layers    = config.num_layers
-        self.batch_size    = config.batch_size
-        self.max_size      = config.max_source_len
-        self.init_dropout  = config.dropout_rate
-        self.s_nwords      = config.src_vocab_size
-        self.t_nwords      = config.target_vocab_size
-        self.minval        = -0.1
-        self.maxval        = 0.1
-        self.lr_init       = config.learning_rate
-        self.max_grad_norm = config.max_grad_norm
-        self.emb_size      = config.embedding_size
-
-        self.is_test       = testing
-        self.name          = 'default'
-
-        self.dataset       = dataset
-
-
-        self.checkpoint_dir    = config.checkpoint_dir
-
-        self.train_iters = 0
-
-
-        self.source     = tf.placeholder(tf.int32, [self.batch_size, self.max_size], name="source")
-        self.target     = tf.placeholder(tf.int32, [self.batch_size, self.max_size], name="target")
-        self.target_len = tf.placeholder(tf.int32, [self.batch_size], name="target_len")
-        self.dropout    = tf.placeholder(tf.float32, name="dropout")
-        self.global_step = tf.Variable(0, dtype=tf.int32, trainable=False, name='global_step')
-        self.learning_rate = tf.placeholder(tf.int32, shape=(), name="lr")
-
-
-        self.build_variables()
-        self.build_model()
-
-        os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-        gpu_options = tf.GPUOptions(allow_growth=True)
-        self.sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options, allow_soft_placement=True))
-        self.sess.run(tf.global_variables_initializer())
-
-        self.saver = tf.train.Saver()
-        if model_path is not None:
-            self.saver.restore(self.sess, model_path)
-
-
-
-    def build_variables(self):
-        #self.lr = tf.Variable(self.lr_init, trainable=False, name="lr")
-        initializer = tf.random_uniform_initializer(self.minval, self.maxval)
-
-        with tf.variable_scope("encoder"):
-            self.s_emb = tf.get_variable("s_embedding", shape=[self.s_nwords, self.emb_size],
-                                         initializer=initializer)
-            self.s_proj_W = tf.get_variable("s_proj_W", shape=[self.emb_size, self.hidden_size],
-                                            initializer=initializer)
-            self.s_proj_b = tf.get_variable("s_proj_b", shape=[self.hidden_size],
-                                            initializer=initializer)
-            cell = tf.nn.rnn_cell.BasicLSTMCell(self.hidden_size, state_is_tuple=True)
-            cell = tf.nn.rnn_cell.DropoutWrapper(cell, output_keep_prob=(1-self.dropout))
-            self.encoder = tf.nn.rnn_cell.MultiRNNCell([cell]*self.num_layers, state_is_tuple=True)
-
-        with tf.variable_scope("decoder"):
-            self.t_emb = tf.get_variable("t_embedding", shape=[self.t_nwords, self.emb_size],
-                                         initializer=initializer)
-            self.t_proj_W = tf.get_variable("t_proj_W", shape=[self.emb_size, self.hidden_size],
-                                            initializer=initializer)
-            self.t_proj_b = tf.get_variable("t_proj_b", shape=[self.hidden_size],
-                                            initializer=initializer)
-            cell = tf.nn.rnn_cell.BasicLSTMCell(self.hidden_size, state_is_tuple=True)
-            cell = tf.nn.rnn_cell.DropoutWrapper(cell, output_keep_prob=(1-self.dropout))
-            self.decoder = tf.nn.rnn_cell.MultiRNNCell([cell]*self.num_layers, state_is_tuple=True)
-
-            # projection
-            self.proj_W = tf.get_variable("W", shape=[self.hidden_size, self.emb_size],
-                                          initializer=initializer)
-            self.proj_b = tf.get_variable("b", shape=[self.emb_size],
-                                          initializer=initializer)
-            self.proj_Wo = tf.get_variable("Wo", shape=[self.emb_size, self.t_nwords],
-                                           initializer=initializer)
-            self.proj_bo = tf.get_variable("bo", shape=[self.t_nwords],
-                                           initializer=initializer)
-
-            # attention
-            self.v_a = tf.get_variable("v_a", shape=[self.hidden_size, 1],
-                                       initializer=initializer)
-            self.W_a = tf.get_variable("W_a", shape=[2*self.hidden_size, self.hidden_size],
-                                       initializer=initializer)
-            self.b_a = tf.get_variable("b_a", shape=[self.hidden_size],
-                                       initializer=initializer)
-            self.W_c = tf.get_variable("W_c", shape=[2*self.hidden_size, self.hidden_size],
-                                       initializer=initializer)
-            self.b_c = tf.get_variable("b_c", shape=[self.hidden_size],
-                                       initializer=initializer)
-
-    def build_model(self):
-        with tf.variable_scope("encoder"):
-            source_xs = tf.nn.embedding_lookup(self.s_emb, self.source)
-            source_xs = tf.split(1, self.max_size, source_xs)
-        with tf.variable_scope("decoder"):
-            target_xs = tf.nn.embedding_lookup(self.t_emb, self.target)
-            target_xs = tf.split(1, self.max_size, target_xs)
-
-        s = self.encoder.zero_state(self.batch_size, tf.float32)
-        encoder_hs = []
-        with tf.variable_scope("encoder"):
-            for t in xrange(self.max_size):
-                if t > 0: tf.get_variable_scope().reuse_variables()
-                x = tf.squeeze(source_xs[t], [1])
-                x = tf.matmul(x, self.s_proj_W) + self.s_proj_b
-                h, s = self.encoder(x, s)
-                encoder_hs.append(h)
-        encoder_hs = tf.pack(encoder_hs)
-
-        s = self.decoder.zero_state(self.batch_size, tf.float32)
-        logits = []
-        probs  = []
-        with tf.variable_scope("decoder"):
-            for t in xrange(self.max_size):
-                if t > 0: tf.get_variable_scope().reuse_variables()
-                if not self.is_test or t == 0:
-                    x = tf.squeeze(target_xs[t], [1])
-                x = tf.matmul(x, self.t_proj_W) + self.t_proj_b
-                h_t, s = self.decoder(x, s)
-                h_tld = self.attention(h_t, encoder_hs)
-
-                oemb  = tf.matmul(h_tld, self.proj_W) + self.proj_b
-                logit = tf.matmul(oemb, self.proj_Wo) + self.proj_bo
-                prob  = tf.nn.softmax(logit)
-                logits.append(logit)
-                probs.append(prob)
-                if self.is_test:
-                    x = tf.cast(tf.argmax(prob, 1), tf.int32)
-                    x = tf.nn.embedding_lookup(self.t_emb, x)
-
-        logits     = logits[:-1]
-        targets    = tf.split(1, self.max_size, self.target)[1:]
-        weights    = tf.unpack(tf.sequence_mask(self.target_len - 1, self.max_size - 1,
-                                                dtype=tf.float32), None, 1)
-        self.loss  = tf.nn.seq2seq.sequence_loss(logits, targets, weights)
-        self.probs = tf.transpose(tf.pack(probs), [1, 0, 2])
-
-        self.optim = tf.contrib.layers.optimize_loss(self.loss, self.global_step,
-                self.learning_rate, "SGD", clip_gradients=5.,
-                summaries=["learning_rate", "loss", "gradient_norm"])
-
-
-    def attention(self, h_t, encoder_hs):
-        #scores = [tf.matmul(tf.tanh(tf.matmul(tf.concat(1, [h_t, tf.squeeze(h_s, [0])]),
-        #                    self.W_a) + self.b_a), self.v_a)
-        #          for h_s in tf.split(0, self.max_size, encoder_hs)]
-        #scores = tf.squeeze(tf.pack(scores), [2])
-        scores = tf.reduce_sum(tf.mul(encoder_hs, h_t), 2)
-        a_t    = tf.nn.softmax(tf.transpose(scores))
-        a_t    = tf.expand_dims(a_t, 2)
-        c_t    = tf.batch_matmul(tf.transpose(encoder_hs, perm=[1,2,0]), a_t)
-        c_t    = tf.squeeze(c_t, [2])
-        h_tld  = tf.tanh(tf.matmul(tf.concat(1, [h_t, c_t]), self.W_c) + self.b_c)
-
-        return h_tld
-
-    def get_model_name(self):
-        date = datetime.now()
-        return "{}-{}-{}-{}-{}".format(self.name, self.dataset, date.month, date.day, date.hour)
-
-
-    def save(self, path):
-        self.saver.save(self.sess, path, global_step=self.global_step)
-
-
-    def load(self, ckpt_dir):
-        print("[*] Reading checkpoints...")
-        ckpt = tf.train.get_checkpoint_state(ckpt_dir)
-        if ckpt and ckpt.model_checkpoint_path:
-            self.saver.restore(self.sess, ckpt.model_checkpoint_path)
-        else:
-            raise Exception("[!] No checkpoint found")
-
-
-    def train_on_batch(self, x_batch, x_lens, y_batch, y_lens, learning_rate=1.0):
-        """ train on a minibatch of data. x and y are assumed to be 
-            padded to length max_seq_len, with [x/y]_lens reflecting
-            the original lengths of each sequence
-        """
-        _, probs, loss, step = self.sess.run([self.optim, self.probs, self.loss, self.global_step],
-                        feed_dict={self.source: x_batch,
-                                   self.target: y_batch,
-                                   self.target_len: y_lens,
-                                   self.dropout: self.init_dropout,
-                                   self.learning_rate: learning_rate})
-        return np.argmax(probs, axis=2), loss, step
-
-
-    def run_on_batch(self, x_batch, x_lens, y_batch, y_lens, learning_rate=1.0):
-        """ "predict" on a batch while the model is in training mode (for validation use)
-        """
-        probs, loss = self.sess.run([self.probs, self.loss],
-                              feed_dict={self.source: x_batch,
-                                         self.target: y_batch,
-                                         self.target_len: y_lens,
-                                         self.dropout: 0.0,
-                                         self.learning_rate: learning_rate})
-
-        return np.argmax(probs, axis=2), loss
-
-
-
-
-
-
-
 
 
 

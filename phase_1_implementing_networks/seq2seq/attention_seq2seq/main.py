@@ -14,7 +14,7 @@ python main.py data/processed_30/ en vi dot 50 [checkpoint path to load from]
 """
 import numpy as np
 from dataset import Dataset
-from model import Seq2SeqV3, AttentionNN
+from model import Seq2SeqV3
 import sys
 import utils
 import time
@@ -45,7 +45,6 @@ print 'INFO: dataset built. Train size: ', d.train_N, 'val size: ', d.val_N
 
 print 'INFO: building model...'
 model = Seq2SeqV3(c, d, testing=False)
-#model = AttentionNN(c, d, testing=False)
 if model_path is not None:
     model.load(model_path)
 print 'INFO: model built.'
@@ -107,10 +106,10 @@ try:
             model.save(checkpoint_loc)
             print 'INFO: checkpoint saved to %s' % (checkpoint_loc)
 
-        if epoch > 9 and epoch % 5 == 0 and lr > 0.0025:
-            lr = lr * 0.90
+#        if epoch > 9 and epoch % 5 == 0 and lr > 0.0025:
+#            lr = lr * 0.90
 
-        print 'INFO: epoch,', epoch, 'train loss,', train_loss, 'val loss,', val_loss, 'time, ', (time.time() - start)
+        print 'INFO: epoch,', epoch, 'train loss,', train_loss, 'val loss,', val_loss, 'time, ', (time.time() - start), 'lr: ' , lr
 
 except KeyboardInterrupt:
     print 'INFO: stopped!'

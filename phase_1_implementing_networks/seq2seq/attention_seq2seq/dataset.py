@@ -19,25 +19,31 @@ import numpy as np
 import string
 import utils
 
-START = "_START_"
-END = "_END_"
-UNK = "_UNK_"
+START = "<s>"
+END = "</s>"
+UNK = "<unk>"
+PAD = "<pad>"
 
 class Dataset:
 
     def __init__(self, config, *args):
         self.config = config
-        self.vocab_size = config.src_vocab_size - 1  # config includes a +1 for unks
-        self.max_seq_len = config.max_source_len
+        self.l1_vocab_size = config.src_vocab_size - 1    # config includes a +1 for unks
+        self.l2_vocab_size = config.target_vocab_size - 1 # +1 for unks
+
+        self.max_source_len = config.max_source_len
+        self.max_target_len = config.max_target_len
+
         self.batch_size = self.config.batch_size
 
         self.batch_index = 0
+
         if len(args) == 2:
             # raw corpus data
             l1_path, l2_path = args
             self.l1_name, self.l2_name = 'l1', 'l2'
-            self.l1_raw, self.l1_word_index, self.l1_rev_word_index, self.l1_sentences = self.parse_source(l1_path)
-            self.l2_raw, self.l2_word_index, self.l2_rev_word_index, self.l2_sentences = self.parse_source(l2_path)
+            self.l1_raw, self.l1_word_index, self.l1_rev_word_index, self.l1_sentences = self.parse_source(l1_path, self.l1_name)
+            self.l2_raw, self.l2_word_index, self.l2_rev_word_index, self.l2_sentences = self.parse_source(l2_path, self.l2_name)
         else:
             # preprocessed corpus data
             path, self.l1_name, self.l2_name = args
@@ -88,7 +94,7 @@ class Dataset:
         np.save(l2_base + 'indices', np.array(self.l2_sentences))
 
 
-    def parse_source(self, path):
+    def parse_source(self, path, language):
         """ parses a space-seperated corpus into
               1) a list of constituent sentances with start & end tokens added
               2) a dictionary mapping the top K most frequent words to their rank indices
@@ -98,16 +104,20 @@ class Dataset:
                  also, sequences longer than the max len are discarded
         """
         f = open(path, 'rb')
-        src = [s.translate(None, string.punctuation) for s in f]
-        src = [s.strip().decode('utf-8').lower() for s in src]
+#        src = [s.translate(None, string.punctuation) for s in f]   # keep punctuation
+        src = [s.strip().decode('utf-8').lower() for s in f]
         src = ['%s %s %s' % (START, x, END) for x in src]
         src_tok = [nltk.word_tokenize(x) for x in src]
 
         f = nltk.FreqDist(itertools.chain(*src_tok))
-        vocab = f.most_common(self.vocab_size - 1)
+        # -4 for unk, pad, start end. +1 because most_common is 0-indexed
+        vocab = f.most_common(self.l1_vocab_size-4+1 if language == self.l1_name else self.l2_vocab_size-4+1)
+        word_index = {w: i+4 for i, (w, f) in enumerate(vocab)}
+        word_index[PAD] = 0
+        word_index[UNK] = 1
+        word_index[START] = 2
+        word_index[END] = 3
 
-        word_index = {w: i+1 for i, (w, f) in enumerate(vocab)}
-        word_index[UNK] = self.vocab_size
         reverse_index = {v: k for (k, v) in word_index.iteritems()}
 
         src_tok_unk = [[w if w in word_index else UNK for w in s] for s in src_tok]
@@ -134,7 +144,7 @@ class Dataset:
     def make_train_test_splits(self):
         indices = []
         for i in range(len(self.l1_sentences)): # throw out stuff past max len
-            if len(self.l1_sentences[i]) < self.max_seq_len and len(self.l2_sentences[i]) < self.max_seq_len:
+            if len(self.l1_sentences[i]) <= self.max_source_len and len(self.l2_sentences[i]) <= self.max_target_len:
                 indices.append(i)
         valid_indices = np.array(indices)
 
@@ -201,26 +211,15 @@ class Dataset:
         """ returns next batch_size examples and their lengths
             pads, clips, and measures lengths
         """
-        def clip_pad(seq, dict):
-            ln = len(seq)
-            if ln > self.max_seq_len: # should be ignored
-                print 'YOU SHOULDNT BE HERE'
-                seq = seq[:self.max_seq_len-1]
-                seq += [dict[END]]
-                ln = self.max_seq_len
-            else:
-                seq += [0] * (self.max_seq_len - ln)
-            return seq, ln
+        def pre_pad(l, pad=self.l1_word_index[PAD]):
+            new = [pad] * self.max_source_len
+            new[(self.max_source_len - len(l)):] = l
+            return new
 
-        def pre_pad(lst, pad_elt):
-            nlst = [pad_elt]*self.max_seq_len
-            nlst[(self.max_seq_len - len(lst)):] = lst
-            return nlst
-
-        def post_pad(lst, pad_elt):
-            nlst = [pad_elt]*self.max_seq_len
-            nlst[:len(lst)] = lst
-            return nlst
+        def post_pad(l, pad=self.l2_word_index[PAD]):
+            new = [pad] * self.max_target_len
+            new[:len(l)] = l
+            return new
 
         index_source = self.train_indices if training else self.val_indices
         indices = index_source[self.batch_index : self.batch_index + self.batch_size]
@@ -228,12 +227,11 @@ class Dataset:
         y = self.l2_sentences[indices].tolist()
 
         self.batch_index += self.batch_size
-        # REVERSED INPUT
-        x_batch = [pre_pad(x[i][::-1], 0) for i in range(self.batch_size)]
-#        x_batch = [clip_pad(x[i][::-1], self.l1_word_index)[0] for i in range(self.batch_size)]
+        # TODO - GET PAD SYMBOL FROM REV DICT
+        x_batch = [pre_pad(x[i][::-1]) for i in range(self.batch_size)]
         x_lens = np.count_nonzero(np.array(x_batch), axis=1).tolist()
 
-        y_batch = [post_pad(y[i], 0) for i in range(self.batch_size)]
+        y_batch = [post_pad(y[i]) for i in range(self.batch_size)]
         y_lens = np.count_nonzero(np.array(y_batch), axis=1).tolist()
 
         return x_batch, x_lens, y_batch, y_lens
@@ -245,7 +243,7 @@ class Dataset:
 if __name__ == "__main__":
     c = utils.Config()
     d = Dataset(c, *tuple(sys.argv[1:]))
-    d.write('./data/processed_30', 'en', 'vi')
+    d.write('./data/processed_40', 'en', 'vi')
 
 
 #    while d.has_next_batch(3):

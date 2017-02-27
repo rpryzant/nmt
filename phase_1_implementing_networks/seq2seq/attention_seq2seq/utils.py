@@ -5,21 +5,21 @@ import matplotlib.pyplot as plt
 
 
 class Config:
-    src_vocab_size = 50000 + 1 # +1 for unk
-    max_source_len = 30
-    embedding_size = 256
+    src_vocab_size = 17193 + 4   # unk, pad, start, end
+    target_vocab_size = 7711 + 4 
+    max_source_len = 40
+    max_target_len = 40
+
     batch_size = 128
-    hidden_size = 1024
-    dropout_rate = 0.2
-    num_layers = 3
-    target_vocab_size = 50000 + 1 # +1 for unk
-    max_target_len = 30
-    learning_rate = 1.0    # sgd
+    hidden_size = 512
+    embedding_size = 256
+    num_layers = 1
     attention = 'dot'       # accepted values: [off, dot, bilinear]
+
+    dropout_rate = 0.2
+    learning_rate = 1.0    # sgd
     max_grad_norm = 5.0
     checkpoint_dir = 'checkpoints_mine'
-#    checkpoint_dir = 'checkpoints_dillons'
-
 
 
 def lineplot(filename, title, xlab, ylab, curves):
