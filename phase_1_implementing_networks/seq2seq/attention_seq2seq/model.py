@@ -40,9 +40,10 @@ class Seq2SeqV3(object):
         self.max_target_len       = config.max_target_len
 
         self.embedding_size       = config.embedding_size
-        self.hidden_size          = config.hidden_size
         self.num_layers           = config.num_layers
         self.attention            = config.attention
+        self.encoder_type         = config.encoder_type
+        self.hidden_size          = config.hidden_size
 
         self.batch_size           = config.batch_size
         self.train_dropout        = config.dropout_rate
@@ -247,11 +248,31 @@ class Seq2SeqV3(object):
 
             runs the cell inputs for source-len timesteps
         """
-        outputs, final_state = tf.nn.dynamic_rnn(
-            cell=cell,
-            inputs=source,
-            sequence_length=source_len,
-            dtype=tf.float32)
+        if self.encoder_type == 'default':
+            outputs, final_state = tf.nn.dynamic_rnn(
+                cell=cell,
+                inputs=source,
+                sequence_length=source_len,
+                dtype=tf.float32)
+        elif self.encoder_type == 'bidirectional':
+            if self.num_layers == 1:
+                outputs_pre, final_state = tf.nn.bidirectional_dynamic_rnn(
+                    cell_fw=cell,
+                    cell_bw=cell,
+                    inputs=source,
+                    sequence_length=source_len,
+                    dtype=tf.float32)
+                # Concatenate outputs and states of the forward and backward RNNs
+                outputs = tf.concat(2, outputs_pre)
+            else:
+                outputs, output_state_fw, output_state_bw = \
+                    tf.contrib.rnn.python.ops.rnn.stack_bidirectional_dynamic_rnn(
+                        cells_fw=cell._cells,
+                        cells_bw=cell._cells,
+                        inputs=source,
+                        sequence_length=source_len,
+                        dtype=tf.float32)
+                final_state = output_state_fw, output_state_bw
         return outputs, final_state
 
 
@@ -310,9 +331,11 @@ class Seq2SeqV3(object):
     def build_attention_vars(self):
         """ builds all the matrices needed for attention
         """
-        W_a = tf.get_variable("W_a", shape=[self.hidden_size, self.hidden_size],
+        # if we were bidirectional, hidden states have been concatenated, so double the dimension
+        extra_hidden_features = self.hidden_size if self.encoder_type == 'bidirectional' else 0
+        W_a = tf.get_variable("W_a", shape=[self.hidden_size, self.hidden_size + extra_hidden_features],
                                    initializer=tf.contrib.layers.xavier_initializer())
-        W_c = tf.get_variable("W_c", shape=[2*self.hidden_size, self.hidden_size],
+        W_c = tf.get_variable("W_c", shape=[2*self.hidden_size + extra_hidden_features, self.hidden_size],
                                    initializer=tf.contrib.layers.xavier_initializer())
         b_c = tf.get_variable("b_c", shape=[self.hidden_size],
                                    initializer=tf.contrib.layers.xavier_initializer())

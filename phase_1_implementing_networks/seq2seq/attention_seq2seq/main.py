@@ -9,7 +9,7 @@ it as-is, the model will overfit on a subset of the provided data.
 
 
 === USAGE
-python main.py data/processed_30/ en vi dot 50 [checkpoint path to load from]
+python main.py data/processed_30/ en vi [checkpoint path to load from]
 
 """
 import numpy as np
@@ -28,12 +28,10 @@ import utils
 data_loc = sys.argv[1]
 lang1 = sys.argv[2]
 lang2 = sys.argv[3]
-attention_type = sys.argv[4]
-epochs = int(sys.argv[5])
-model_path = sys.argv[6] if len(sys.argv) > 6 else None
+model_path = sys.argv[4] if len(sys.argv) > 4 else None
 
 c = utils.Config()
-c.attention = attention_type
+
 
 print 'INFO: building dataset...'
 d = Dataset(c, data_loc, lang1, lang2)
@@ -54,7 +52,7 @@ print 'INFO: building checkpoint dir...'
 cur_dir = os.path.dirname(os.path.realpath(__file__)) + '/'
 if not os.path.exists(cur_dir + c.checkpoint_dir):
     os.mkdir(cur_dir + c.checkpoint_dir)
-checkpoint_dir = cur_dir + c.checkpoint_dir + '/%s_%s_%s' % (lang1, lang2, attention_type)
+checkpoint_dir = cur_dir + c.checkpoint_dir + '/%s_%s_%s' % (lang1, lang2, c.attention_type)
 if not os.path.exists(checkpoint_dir):
     os.mkdir(checkpoint_dir)
 print 'INFO: checkpoints ready to go'
@@ -62,6 +60,8 @@ print 'INFO: checkpoints ready to go'
 
 print 'INFO: training...'
 lr = c.learning_rate
+epochs = int(c.epochs)
+
 best_valid_loss = float("inf")
 train_losses = []
 val_losses = []

@@ -14,8 +14,10 @@ class Config:
     hidden_size = 512
     embedding_size = 256
     num_layers = 1
-    attention = 'dot'       # accepted values: [off, dot, bilinear]
+    attention = 'bilinear'       # accepted values: [off, dot, bilinear]
+    encoder_type = 'bidirectional'    # [default, bidirectional]
 
+    epochs = 35
     dropout_rate = 0.2
     learning_rate = 1.0    # sgd
     max_grad_norm = 5.0
