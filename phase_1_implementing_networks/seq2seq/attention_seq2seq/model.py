@@ -6,7 +6,8 @@ TODO: read from model path if provided
       break up into multiple files!!
       beam search decoding
 """
-
+import encoders
+import decoders
 import tensorflow as tf
 import numpy as np
 import os
@@ -41,6 +42,7 @@ class Seq2SeqV3(object):
         self.num_layers           = config.num_layers
         self.attention            = config.attention
         self.encoder_type         = config.encoder_type
+        self.decoder_type         = config.decoder_type
         self.hidden_size          = config.hidden_size
 
         self.optimizer            = config.optimizer
@@ -172,74 +174,6 @@ class Seq2SeqV3(object):
         return decoder_output
 
 
-    def run_decoder(self, target, target_len, decoder, encoder_result):
-        """ target: [batch size, sequence len]
-            target_len: [batch_size]  = pre-padded target lengths
-            decoder: RNNCell 
-            encoder_result: 
-                [batch_size, max_time, hidden state size] (encoder outputs)  if attention
-                [batch size, hidden state size]       (encoder final state)  otherwisea
-
-            runs a decoder on target and returns its predictions at each timestep
-        """
-        # projection to rnn space
-        target_proj_W = tf.get_variable("t_proj_W",
-                                        shape=[self.embedding_size, self.hidden_size],
-                                        initializer=tf.contrib.layers.xavier_initializer())
-        target_proj_b = tf.get_variable("t_proj_b", shape=[self.hidden_size],
-                                        initializer=tf.contrib.layers.xavier_initializer())
-        # projection to output embeddings
-        out_embed_W = tf.get_variable("o_embed_W",
-                                      shape=[self.hidden_size, self.embedding_size],
-                                      initializer=tf.contrib.layers.xavier_initializer())
-        out_embed_b = tf.get_variable("o_embed_b",
-                                      shape=[self.embedding_size],
-                                      initializer=tf.contrib.layers.xavier_initializer())
-        # projection to logits
-        out_W = tf.get_variable("Wo", shape=[self.embedding_size, self.target_vocab_size],
-                                initializer=tf.contrib.layers.xavier_initializer())
-        out_b = tf.get_variable("bo", shape=[self.target_vocab_size],
-                                initializer=tf.contrib.layers.xavier_initializer())
-
-        # decode source by initializing with encoder's final hidden state
-        target_x = tf.unstack(target, axis=1)                        # break the target into a list of word vectors
-   
-        if self.attention == 'off':
-            s = encoder_result 
-        else:
-            s = decoder.zero_state(self.batch_size, tf.float32)
-            attention_vars = self.build_attention_vars()
-
-        logits = []
-        for t in range(self.max_target_len):
-            if t > 0: tf.get_variable_scope().reuse_variables()      # reuse variables after 1st iteration
-            if self.testing and t == 0:                               # at test time, kick things off w/start token
-                _, start_tok = self.dataset.get_start_token_indices() # get start token index for decoding lang
-                start_vec = np.full([self.batch_size], start_tok)
-                x = tf.nn.embedding_lookup(self.target_embedding, start_vec)   # look up start token
-            elif not self.testing:
-                x = target_x[t]                                      # while training, feed in correct input
-
-            projection = tf.matmul(x, target_proj_W) + target_proj_b # project embedding into rnn space
-            h, s = decoder(projection, s)                            # s is last encoder state when t == 0
-
-            if not self.attention == 'off':
-                h = self.attention_layer(h, encoder_result, *attention_vars)
-            
-            out_embedding = tf.matmul(h, out_embed_W) + out_embed_b  # project output to target embedding space
-            logit = tf.matmul(out_embedding, out_W) + out_b 
-            logits.append(logit)
-
-            if self.testing:
-                prob = tf.nn.softmax(logit)
-                x = tf.cast(tf.argmax(prob, 1), tf.int32)            # if testing, use cur pred as next input
-                x = tf.nn.embedding_lookup(self.target_embedding, x)
-
-        logits = tf.stack(logits)
-        logits = tf.transpose(logits, [1, 0, 2])                     # get into [batch size, sequence len, vocab size]
-        return logits
-
-
     def run_encoder(self, source, source_len, cell):
         """ source: [batch size, seq len]
             source_len: [batch size]   = pre-padding lengths
@@ -247,88 +181,54 @@ class Seq2SeqV3(object):
 
             runs the cell inputs for source-len timesteps
         """
+
         if self.encoder_type == 'default':
-            outputs, final_state = tf.nn.dynamic_rnn(
-                cell=cell,
-                inputs=source,
-                sequence_length=source_len,
-                dtype=tf.float32)
-
-        elif self.encoder_type == 'bidirectional':
-            if self.num_layers == 1:
-                outputs_pre, final_state = tf.nn.bidirectional_dynamic_rnn(
-                    cell_fw=cell,
-                    cell_bw=cell,
-                    inputs=source,
-                    sequence_length=source_len,
-                    dtype=tf.float32)
-                # Concatenate outputs and states of the forward and backward RNNs
-                outputs = tf.concat(2, outputs_pre)
-            else:
-                outputs, output_state_fw, output_state_bw = \
-                    tf.contrib.rnn.python.ops.rnn.stack_bidirectional_dynamic_rnn(
-                        cells_fw=cell._cells,
-                        cells_bw=cell._cells,
-                        inputs=source,
-                        sequence_length=source_len,
-                        dtype=tf.float32)
-                final_state = output_state_fw, output_state_bw
-
+            encoder = encoders.DefaultEncoder(cell)
+        elif self.encoder_type == 'bidirectional' and self.num_layers == 1:
+            encoder = encoders.DefaultBidirectionalEncoder(cell)
+        elif self.encoder_type == 'bidirectional' and self.num_layers > 1:
+            encoder = encoders.StackedBidirectionalEncoder(cell)
         elif self.encoder_type == 'handmade':
-            proj_W = tf.get_variable("s_proj_W", shape=[self.embedding_size, self.hidden_size],
-                                     initializer=tf.contrib.layers.xavier_initializer())
-            proj_b = tf.get_variable("s_proj_b", shape=[self.hidden_size],
-                                     initializer=tf.contrib.layers.xavier_initializer())
-            s = cell.zero_state(self.batch_size, tf.float32)
-            encoder_hs = []
-            for t in xrange(self.max_source_len):
-                if t > 0: tf.get_variable_scope().reuse_variables()
-                x = source[:,t]
-                x = tf.matmul(x, proj_W) + proj_b
-                h, s = cell(x, s)
-                encoder_hs.append(h)
-            encoder_hs = tf.pack(encoder_hs)
-            outputs = tf.transpose(encoder_hs, [1, 0, 2])  # get into same shape as other encoder outputs
-            final_state = s
-
+            encoder = encoders.HandmadeEncoder(cell,
+                                               self.embedding_size,
+                                               self.hidden_size,
+                                               self.max_source_len,
+                                               self.batch_size)
         elif self.encoder_type == 'handmade_bidirectional':
-            # use same cell for forward and backward
-            proj_Wf = tf.get_variable("s_proj_W", shape=[self.embedding_size, self.hidden_size],
-                                     initializer=tf.contrib.layers.xavier_initializer())
-            proj_bf = tf.get_variable("s_proj_b", shape=[self.hidden_size],
-                                     initializer=tf.contrib.layers.xavier_initializer())
-            s = cell.zero_state(self.batch_size, tf.float32)
-            encoder_hs = []
-            for t in xrange(self.max_source_len):
-                if t > 0: tf.get_variable_scope().reuse_variables()
-                x = source[:,t]
-                x = tf.matmul(x, proj_Wf) + proj_bf
-                h, s = cell(x, s)
-                encoder_hs.append(h)
-            encoder_hs = tf.pack(encoder_hs)
-            outputs_f = tf.transpose(encoder_hs, [1, 0, 2])  # get into same shape as other encoder outputs
-            final_state_f = s
-
-            proj_Wb = tf.get_variable("s_proj_W", shape=[self.embedding_size, self.hidden_size],
-                                     initializer=tf.contrib.layers.xavier_initializer())
-            proj_bb = tf.get_variable("s_proj_b", shape=[self.hidden_size],
-                                     initializer=tf.contrib.layers.xavier_initializer())
-            s = cell.zero_state(self.batch_size, tf.float32)
-            encoder_hs = []
-            for t in range(self.max_source_len)[::-1]:
-                if t > 0: tf.get_variable_scope().reuse_variables()
-                x = source[:,t]
-                x = tf.matmul(x, proj_Wb) + proj_bb
-                h, s = cell(x, s)
-                encoder_hs.append(h)
-            encoder_hs = tf.pack(encoder_hs)
-            outputs_b = tf.transpose(encoder_hs, [1, 0, 2])  # get into same shape as other encoder outputs
-            final_state_b = s
-            
-            outputs = tf.concat(2, [outputs_f, outputs_b])
-            final_state = final_state_f, final_state_b
-
+            encoder = encoders.HandmadeBidirectionalEncoder(cell,
+                                                            self.embedding_size,
+                                                            self.hidden_size,
+                                                            self.max_source_len,
+                                                            self.batch_size)
+        print source
+        print source_len
+        outputs, final_state = encoder(source, source_len)
         return outputs, final_state
+
+
+    def run_decoder(self, target, target_len, cell, encoder_result):
+        """ target: [batch size, sequence len]
+            target_len: [batch_size]  = pre-padded target lengths
+            cell: RNNCell 
+            encoder_result: 
+                [batch_size, max_time, hidden state size] (encoder outputs)  if attention
+                [batch size, hidden state size]       (encoder final state)  otherwisea
+
+            runs a decoder on target and returns its predictions at each timestep
+        """
+        if self.decoder_type == 'argmax':
+            decoder = decoders.ArgmaxDecoder(cell,
+                                             self.embedding_size,
+                                             self.hidden_size,
+                                             self.target_vocab_size,
+                                             self.batch_size,
+                                             self.max_target_len,
+                                             self.target_embedding,
+                                             self.testing,
+                                             self.attention,
+                                             self.encoder_type)
+        logits = decoder(target, target_len, encoder_result)
+        return logits
 
 
     def build_rnn_cell(self):
@@ -340,61 +240,6 @@ class Seq2SeqV3(object):
                                              output_keep_prob=(1-self.dropout))
         stacked_cell = tf.nn.rnn_cell.MultiRNNCell([cell]*self.num_layers, state_is_tuple=True)
         return stacked_cell
-
-
-    def attention_layer(self, h_t, encoder_states, W_a, W_c, b_c):
-        """ dot-product attentional layer as described in https://arxiv.org/abs/1508.04025
-            -h_t : [batch size, hidden size]   : current decoder hidden state
-            -encoder_states [batch size, max len, hidden size] : history of encoder activity
-            - W_a, W_c, b_c : weights for attention
-        """
-        def dot_score(encoder_states, h_t):  # returns [50, 5]
-            """ dots h_t with each encoder state """
-            encoder_states = tf.transpose(encoder_states, [1, 0, 2]) 
-            return tf.reduce_sum(tf.mul(encoder_states, h_t), 2)     
-
-        def bilinear_score(encoder_states, h_t):
-            """ h_t * W_a, then dots the result with each encoder state """
-            encoder_states = tf.transpose(encoder_states, [1, 0, 2]) 
-            pre_score = tf.matmul(h_t, W_a) 
-            return tf.reduce_sum(tf.multiply(encoder_states, pre_score), 2)
-
-        # compute attentional weighting
-        if self.attention == 'dot':
-            scores = dot_score(encoder_states, h_t)
-        elif self.attention == 'bilinear':
-            scores = bilinear_score(encoder_states, h_t)
-        else:
-            raise RuntimeException('ERROR: attention type %s not supported' % self.attention)
-
-        a_t    = tf.nn.softmax(scores, dim=0)                      # softmax over timesteps for each batch
-        a_t    = tf.expand_dims(a_t, 2)                            # turn into 3d tensor
-
-        #          ( encoder )      ( a_t )
-        # perform [hidden, time] X [time, 1] slice matmuls to get weighted average of 
-        # encoder states, weighted by a_t
-        a_t = tf.transpose(a_t, [1, 0, 2])                           # move batch to 1st dim, time to 2nd dim
-        encoder_states = tf.transpose(encoder_states, [0, 2, 1])     # move batch to 1st dim, time to last dim
-        c_t    = tf.batch_matmul(encoder_states, a_t)  
-        c_t    = tf.squeeze(c_t)
-
-        # concat h_t and c_t, then send through fc layer to get final h
-        h_new  = tf.tanh(tf.matmul(tf.concat(1, [h_t, c_t]), W_c) + b_c)
-        return h_new
-
-
-    def build_attention_vars(self):
-        """ builds all the matrices needed for attention
-        """
-        # if we were bidirectional, hidden states have been concatenated, so double the dimension
-        extra_hidden_features = self.hidden_size if 'bidirectional' in self.encoder_type else 0
-        W_a = tf.get_variable("W_a", shape=[self.hidden_size, self.hidden_size + extra_hidden_features],
-                                   initializer=tf.contrib.layers.xavier_initializer())
-        W_c = tf.get_variable("W_c", shape=[2*self.hidden_size + extra_hidden_features, self.hidden_size],
-                                   initializer=tf.contrib.layers.xavier_initializer())
-        b_c = tf.get_variable("b_c", shape=[self.hidden_size],
-                                   initializer=tf.contrib.layers.xavier_initializer())
-        return W_a, W_c, b_c
 
 
     def train_on_batch(self, x_batch, x_lens, y_batch, y_lens, learning_rate=1.0):

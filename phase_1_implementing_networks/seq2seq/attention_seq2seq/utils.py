@@ -16,11 +16,12 @@ class Config:
     num_layers = 1
     attention = 'bilinear'       # accepted values: [off, dot, bilinear]
     encoder_type = 'handmade_bidirectional'    # [default, bidirectional, handmade, handmade_bidirectional]
+    decoder_type = 'argmax'    # [default]
 
     epochs = 35
     dropout_rate = 0.2
-    optimizer='SGD' #     # [SGD, Adam, Adagrad]
-    learning_rate = 1.0    # sgd
+    optimizer='Adam' #     # [SGD, Adam, Adagrad]
+    learning_rate = 0.0003    # [1.0 for sgd, 0.0003 for adam] work well
     max_grad_norm = 5.0
     checkpoint_dir = 'checkpoints_mine'
 
