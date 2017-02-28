@@ -3,8 +3,8 @@ http://arxiv.org/abs/1412.7449 and https://arxiv.org/abs/1508.04025 (mostly the 
 
 
 TODO: read from model path if provided
-      break up into multiple files!!
       beam search decoding
+      unk replacement from attention scores
 """
 import encoders
 import decoders
