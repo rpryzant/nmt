@@ -9,8 +9,7 @@ Decoder  (collects args, builds decoder vars, hold attention functions)
    ArgmaxTestDecoder
 
    BeamSearchTestDecoder
-  
-  T
+given 'em all a step function?
 
 
 """
