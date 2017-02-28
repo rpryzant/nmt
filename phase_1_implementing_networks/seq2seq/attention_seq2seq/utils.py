@@ -15,10 +15,11 @@ class Config:
     embedding_size = 256
     num_layers = 1
     attention = 'bilinear'       # accepted values: [off, dot, bilinear]
-    encoder_type = 'bidirectional'    # [default, bidirectional]
+    encoder_type = 'handmade'    # [default, bidirectional, handmade]
 
     epochs = 35
     dropout_rate = 0.2
+    optimizer='SGD' #     # [SGD, Adam, Adagrad]
     learning_rate = 1.0    # sgd
     max_grad_norm = 5.0
     checkpoint_dir = 'checkpoints_mine'

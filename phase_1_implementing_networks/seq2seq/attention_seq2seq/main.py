@@ -52,7 +52,7 @@ print 'INFO: building checkpoint dir...'
 cur_dir = os.path.dirname(os.path.realpath(__file__)) + '/'
 if not os.path.exists(cur_dir + c.checkpoint_dir):
     os.mkdir(cur_dir + c.checkpoint_dir)
-checkpoint_dir = cur_dir + c.checkpoint_dir + '/%s_%s_%s' % (lang1, lang2, c.attention_type)
+checkpoint_dir = cur_dir + c.checkpoint_dir + '/%s_%s_%s' % (lang1, lang2, c.attention)
 if not os.path.exists(checkpoint_dir):
     os.mkdir(checkpoint_dir)
 print 'INFO: checkpoints ready to go'
@@ -96,7 +96,7 @@ try:
             print 'INFO: new best validation loss!...'
             best_valid_loss = val_loss
             print 'INFO: generating plots...'
-            filename = checkpoint_dir + '/%s-%s.png' % (attention_type, str(epoch))
+            filename = checkpoint_dir + '/%s-%s.png' % (c.attention, str(epoch))
             utils.lineplot(filename, 'Train/Val Losses', 'epoch', 'Loss', 
                             [(train_losses, 'train'), (val_losses, 'val')])
             print 'INFO: plot saved to %s' % filename

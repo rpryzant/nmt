@@ -45,6 +45,7 @@ class Seq2SeqV3(object):
         self.encoder_type         = config.encoder_type
         self.hidden_size          = config.hidden_size
 
+        self.optimizer            = config.optimizer
         self.batch_size           = config.batch_size
         self.train_dropout        = config.dropout_rate
         self.max_grad_norm        = config.max_grad_norm
@@ -122,7 +123,7 @@ class Seq2SeqV3(object):
         train_step = tf.contrib.layers.optimize_loss(self.loss, 
                                                       self.global_step,
                                                       learning_rate=self.learning_rate, 
-                                                      optimizer="SGD", 
+                                                      optimizer=self.optimizer, 
                                                       clip_gradients=5.0)
         return train_step
 
@@ -254,6 +255,7 @@ class Seq2SeqV3(object):
                 inputs=source,
                 sequence_length=source_len,
                 dtype=tf.float32)
+
         elif self.encoder_type == 'bidirectional':
             if self.num_layers == 1:
                 outputs_pre, final_state = tf.nn.bidirectional_dynamic_rnn(
@@ -273,6 +275,24 @@ class Seq2SeqV3(object):
                         sequence_length=source_len,
                         dtype=tf.float32)
                 final_state = output_state_fw, output_state_bw
+
+        elif self.encoder_type == 'handmade':
+            proj_W = tf.get_variable("s_proj_W", shape=[self.embedding_size, self.hidden_size],
+                                     initializer=tf.contrib.layers.xavier_initializer())
+            proj_b = tf.get_variable("s_proj_b", shape=[self.hidden_size],
+                                     initializer=tf.contrib.layers.xavier_initializer())
+            s = cell.zero_state(self.batch_size, tf.float32)
+            encoder_hs = []
+            for t in xrange(self.max_source_len):
+                if t > 0: tf.get_variable_scope().reuse_variables()
+                x = source[:,t]
+                x = tf.matmul(x, proj_W) + proj_b
+                h, s = cell(x, s)
+                encoder_hs.append(h)
+            encoder_hs = tf.pack(encoder_hs)
+            outputs = tf.transpose(encoder_hs, [1, 0, 2])  # get into same shape as other encoder outputs
+            final_state = s
+
         return outputs, final_state
 
 
