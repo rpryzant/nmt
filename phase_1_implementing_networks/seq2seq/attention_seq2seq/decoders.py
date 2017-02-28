@@ -1,3 +1,22 @@
+"""
+TODO
+
+srructure as
+
+Decoder  (collects args, builds decoder vars, hold attention functions)
+   TrainDecoder
+
+   ArgmaxTestDecoder
+
+   BeamSearchTestDecoder
+  
+  T
+
+
+"""
+
+
+
 import tensorflow as tf
 from graph_module import GraphModule
 
