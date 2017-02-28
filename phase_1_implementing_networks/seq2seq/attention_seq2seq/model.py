@@ -3,10 +3,8 @@ http://arxiv.org/abs/1412.7449 and https://arxiv.org/abs/1508.04025 (mostly the 
 
 
 TODO: read from model path if provided
-      attention
-      real prediction/output probabilities isntead of logits
-      rm batch_size as instance var
-      other attentions other than dot
+      break up into multiple files!!
+      beam search decoding
 """
 
 import tensorflow as tf
@@ -293,6 +291,43 @@ class Seq2SeqV3(object):
             outputs = tf.transpose(encoder_hs, [1, 0, 2])  # get into same shape as other encoder outputs
             final_state = s
 
+        elif self.encoder_type == 'handmade_bidirectional':
+            # use same cell for forward and backward
+            proj_Wf = tf.get_variable("s_proj_W", shape=[self.embedding_size, self.hidden_size],
+                                     initializer=tf.contrib.layers.xavier_initializer())
+            proj_bf = tf.get_variable("s_proj_b", shape=[self.hidden_size],
+                                     initializer=tf.contrib.layers.xavier_initializer())
+            s = cell.zero_state(self.batch_size, tf.float32)
+            encoder_hs = []
+            for t in xrange(self.max_source_len):
+                if t > 0: tf.get_variable_scope().reuse_variables()
+                x = source[:,t]
+                x = tf.matmul(x, proj_Wf) + proj_bf
+                h, s = cell(x, s)
+                encoder_hs.append(h)
+            encoder_hs = tf.pack(encoder_hs)
+            outputs_f = tf.transpose(encoder_hs, [1, 0, 2])  # get into same shape as other encoder outputs
+            final_state_f = s
+
+            proj_Wb = tf.get_variable("s_proj_W", shape=[self.embedding_size, self.hidden_size],
+                                     initializer=tf.contrib.layers.xavier_initializer())
+            proj_bb = tf.get_variable("s_proj_b", shape=[self.hidden_size],
+                                     initializer=tf.contrib.layers.xavier_initializer())
+            s = cell.zero_state(self.batch_size, tf.float32)
+            encoder_hs = []
+            for t in range(self.max_source_len)[::-1]:
+                if t > 0: tf.get_variable_scope().reuse_variables()
+                x = source[:,t]
+                x = tf.matmul(x, proj_Wb) + proj_bb
+                h, s = cell(x, s)
+                encoder_hs.append(h)
+            encoder_hs = tf.pack(encoder_hs)
+            outputs_b = tf.transpose(encoder_hs, [1, 0, 2])  # get into same shape as other encoder outputs
+            final_state_b = s
+            
+            outputs = tf.concat(2, [outputs_f, outputs_b])
+            final_state = final_state_f, final_state_b
+
         return outputs, final_state
 
 
@@ -352,7 +387,7 @@ class Seq2SeqV3(object):
         """ builds all the matrices needed for attention
         """
         # if we were bidirectional, hidden states have been concatenated, so double the dimension
-        extra_hidden_features = self.hidden_size if self.encoder_type == 'bidirectional' else 0
+        extra_hidden_features = self.hidden_size if 'bidirectional' in self.encoder_type else 0
         W_a = tf.get_variable("W_a", shape=[self.hidden_size, self.hidden_size + extra_hidden_features],
                                    initializer=tf.contrib.layers.xavier_initializer())
         W_c = tf.get_variable("W_c", shape=[2*self.hidden_size + extra_hidden_features, self.hidden_size],
