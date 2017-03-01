@@ -9,7 +9,7 @@ it as-is, the model will overfit on a subset of the provided data.
 
 
 === USAGE
-python python main.py datasets/raw/ en vi [checkpoint path to load from]
+python python main.py datasets/ en ja [checkpoint path to load from]
 
 """
 import numpy as np
