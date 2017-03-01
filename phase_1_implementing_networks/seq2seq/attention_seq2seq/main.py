@@ -13,8 +13,9 @@ python main.py data/processed_30/ en vi [checkpoint path to load from]
 
 """
 import numpy as np
-from dataset import Dataset
-from model import Seq2SeqV3
+#from data.dataset import Dataset
+from data.data_iterator import Dataset
+from models.model import Seq2SeqV3
 import sys
 import utils
 import time
@@ -34,7 +35,20 @@ c = utils.Config()
 
 
 print 'INFO: building dataset...'
-d = Dataset(c, data_loc, lang1, lang2)
+#d = Dataset(c, data_loc, lang1, lang2)
+d = Dataset(c, data_loc)
+i = 0
+
+for x, xl, y, yl in d.batch_iter():
+    print x
+    print xl
+    print y
+    print yl
+
+    i += 1
+    if i > 5:
+        quit()
+
 print 'INFO: dataset built. Train size: ', d.train_N, 'val size: ', d.val_N
 #d.subset(13)    # take only X sentances
 #print 'INFO: subset built. Train size: ', d.train_N, 'val size: ', d.val_N

@@ -3,6 +3,14 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 
+class Constants:
+    START = "<s>"
+    END = "</s>"
+    UNK = "<unk>"
+    PAD = "<pad>"
+
+
+
 
 class Config:
     src_vocab_size = 17193 + 4   # unk, pad, start, end
@@ -10,7 +18,7 @@ class Config:
     max_source_len = 40
     max_target_len = 40
 
-    batch_size = 128
+    batch_size = 5
     hidden_size = 512
     embedding_size = 256
     num_layers = 1
@@ -24,6 +32,11 @@ class Config:
     learning_rate = 0.0003    # [1.0 for sgd, 0.0003 for adam] work well
     max_grad_norm = 5.0
     checkpoint_dir = 'checkpoints_mine'
+
+    x_corpus = 'train.en'
+    x_vocab = 'vocab.en'
+    y_corpus = 'train.vi'
+    y_vocab = 'vocab.vi'
 
 
 def lineplot(filename, title, xlab, ylab, curves):
