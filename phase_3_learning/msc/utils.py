@@ -11,7 +11,7 @@ class Config:
     max_source_len    = 40
     max_target_len    = 40
 
-    batch_size        = 5
+    batch_size        = 128
     hidden_size       = 512
     embedding_size    = 256
     num_layers        = 1
@@ -19,16 +19,16 @@ class Config:
     encoder_type      = 'handmade_bidirectional'    # [default, bidirectional, handmade, handmade_bidirectional]
     decoder_type      = 'argmax'    # [default]
 
-    epoch             = 35
+    epochs            = 35
     dropout_rate      = 0.2
     optimizer         ='Adam' #     # [SGD, Adam, Adagrad]
     learning_rate     = 0.0003    # [1.0 for sgd, 0.0003 for adam] work well
     max_grad_norm     = 5.0
     checkpoint_dir    = 'checkpoints_mine'
 
-    x_corpus = 'corpus.en.cleaned.tok'
+    x_corpus = 'corpus.en.cleaned.tok.150k'
     x_vocab = 'vocab.15k.en'
-    y_corpus = 'corpus.ja.cleaned.tok'
+    y_corpus = 'corpus.ja.cleaned.tok.150k'
     y_vocab = 'vocab.15k.ja'
 
 
