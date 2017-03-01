@@ -51,8 +51,8 @@ class Dataset(object):
         train_test_n = N / 25
 
         train = indices[:N - (train_test_n * 2)]
-        val = indices[self.train_n: N - train_test_n]
-        test = indices[self.val_n:]
+        val = indices[len(train): N - train_test_n]
+        test = indices[len(train) + len(val):]
 
         return {'train': train, 'val': val, 'tset': test}
 
@@ -60,6 +60,8 @@ class Dataset(object):
     def num_batches(self, dataset='train'):
         return len(self.indices[dataset]) / self.batch_size
 
+    def get_size(self, dataset='train'):
+        return len(self.indices[dataset])
 
     def batch_iter(self, dataset='train'):
         indices = self.indices[dataset]

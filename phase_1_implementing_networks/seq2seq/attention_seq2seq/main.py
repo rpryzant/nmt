@@ -21,7 +21,7 @@ import utils
 import time
 from tqdm import tqdm
 import os
-import utils
+import msc.utils
 
 
 
@@ -38,18 +38,7 @@ print 'INFO: building dataset...'
 #d = Dataset(c, data_loc, lang1, lang2)
 d = Dataset(c, data_loc)
 i = 0
-
-for x, xl, y, yl in d.batch_iter():
-    print x
-    print xl
-    print y
-    print yl
-
-    i += 1
-    if i > 5:
-        quit()
-
-print 'INFO: dataset built. Train size: ', d.train_N, 'val size: ', d.val_N
+print 'INFO: dataset built. Train size: ', d.get_size('train'), 'val size: ', d.get_size('val')
 #d.subset(13)    # take only X sentances
 #print 'INFO: subset built. Train size: ', d.train_N, 'val size: ', d.val_N
 
@@ -86,25 +75,24 @@ try:
         # training
         i = 0
         train_loss = 0.0
-        for batch in tqdm(d.batch_iter(training=True), total=d.train_N/c.batch_size):
+        for batch in tqdm(d.batch_iter(dataset='train'), total=d.num_batches('train')):
 #        for batch in d.batch_iter(training=True):
             pred, loss, _ = model.train_on_batch(*batch, learning_rate=lr)
             i += 1.0
             train_loss += loss
         train_loss /= (i or 1)
         train_losses.append(train_loss)
-        d.reset_batch_counter()
+
         # validation
         i = 0.0
         val_loss = 0.0
-        for batch in tqdm(d.batch_iter(training=False), total=d.val_N/c.batch_size):
+        for batch in tqdm(d.batch_iter(dataset='val'), total=d.num_batches('val')):
 #        for batch in d.batch_iter(training=False):
             pred, loss = model.run_on_batch(*batch, learning_rate=lr)
             val_loss += loss
             i += 1.0
         val_loss /= (i or 1)
         val_losses.append(val_loss)
-        d.reset_batch_counter()
 
         if epoch > 0 and val_loss < best_valid_loss:
             print 'INFO: new best validation loss!...'
