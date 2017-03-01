@@ -9,7 +9,7 @@ it as-is, the model will overfit on a subset of the provided data.
 
 
 === USAGE
-python main.py data/processed_30/ en vi [checkpoint path to load from]
+python python main.py datasets/raw/ en vi [checkpoint path to load from]
 
 """
 import numpy as np
@@ -21,7 +21,7 @@ import utils
 import time
 from tqdm import tqdm
 import os
-import msc.utils
+from msc.utils import Config, lineplot
 
 
 
@@ -31,7 +31,14 @@ lang1 = sys.argv[2]
 lang2 = sys.argv[3]
 model_path = sys.argv[4] if len(sys.argv) > 4 else None
 
-c = utils.Config()
+
+def lines(f)
+ return int(os.popen('wc -l %s' % f).read().strip().split()[0])
+
+
+c = Config()
+c.src_vocab_size = lines(data_loc )
+
 
 
 print 'INFO: building dataset...'
@@ -119,7 +126,7 @@ except KeyboardInterrupt:
 finally:
     print 'INFO: generating plots...'
     filename = checkpoint_dir + '/final_losses.png'
-    utils.lineplot(filename, 'Train/Val Losses', 'epoch', 'Loss', 
+    lineplot(filename, 'Train/Val Losses', 'epoch', 'Loss', 
                     [(train_losses, 'train'), (val_losses, 'val')])
     print 'INFO: plot saved to %s' % filename
 

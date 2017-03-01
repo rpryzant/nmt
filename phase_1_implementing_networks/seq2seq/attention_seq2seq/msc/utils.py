@@ -11,10 +11,9 @@ class Constants:
 
 
 
-
 class Config:
-    src_vocab_size = 17193 + 4   # unk, pad, start, end
-    target_vocab_size = 7711 + 4 
+    src_vocab_size = -1   # unk, pad, start, end
+    target_vocab_size = -1
     max_source_len = 40
     max_target_len = 40
 

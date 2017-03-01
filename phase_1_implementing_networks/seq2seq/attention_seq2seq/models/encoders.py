@@ -1,6 +1,7 @@
 
 import tensorflow as tf
-from graph_module import GraphModule
+import sys; sys.path.append('../')    # sigh 
+from msc.graph_module import GraphModule
 
 
 

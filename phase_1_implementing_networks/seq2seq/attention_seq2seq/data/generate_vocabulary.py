@@ -9,7 +9,7 @@ python generate_vocabulary.py [corpus] [max_vocab_size] > outfile
 """
 from collections import Counter
 import sys; sys.path.append('../')    # sigh 
-from utils import Constants 
+from msc.utils import Constants 
 
 
 corpus = sys.argv[1]

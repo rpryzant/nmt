@@ -4,7 +4,7 @@ TODO - DOCUMENTATION
 """
 
 import sys; sys.path.append('../')    # sigh 
-from utils import Constants 
+from msc.utils import Constants 
 import numpy as np
 import os
 
