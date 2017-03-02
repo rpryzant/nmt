@@ -20,14 +20,11 @@ import msc.utils
 import time
 from tqdm import tqdm
 import os
-from msc.utils import Config, lineplot, file_length
-
-
+from msc.utils import Config, lineplot, file_length, Progbar
 
 
 data_loc = sys.argv[1]
-lang1 = sys.argv[2]
-lang2 = sys.argv[3]
+job_id = sys.argv[2]
 model_path = sys.argv[4] if len(sys.argv) > 4 else None
 
 
@@ -37,7 +34,6 @@ c.target_vocab_size = file_length(data_loc + c.y_vocab)
 
 
 print 'INFO: building dataset...'
-#d = Dataset(c, data_loc, lang1, lang2)
 d = Dataset(c, data_loc)
 i = 0
 print 'INFO: dataset built. Train size: ', d.get_size('train'), 'val size: ', d.get_size('val')
@@ -57,7 +53,7 @@ print 'INFO: building checkpoint dir...'
 cur_dir = os.path.dirname(os.path.realpath(__file__)) + '/'
 if not os.path.exists(cur_dir + c.checkpoint_dir):
     os.mkdir(cur_dir + c.checkpoint_dir)
-checkpoint_dir = cur_dir + c.checkpoint_dir + '/%s_%s_%s' % (lang1, lang2, c.attention)
+checkpoint_dir = cur_dir + c.checkpoint_dir + '/%s' % job_id
 if not os.path.exists(checkpoint_dir):
     os.mkdir(checkpoint_dir)
 print 'INFO: checkpoints ready to go'
@@ -76,23 +72,27 @@ try:
 
         # training
         i = 0
+        prog = Progbar(target=d.num_batches('train'))
         train_loss = 0.0
-        for batch in tqdm(d.batch_iter(dataset='train'), total=d.num_batches('train')):
-#        for batch in d.batch_iter(training=True):
+#        for batch in tqdm(d.batch_iter(dataset='train'), total=d.num_batches('train')):
+        for batch in d.batch_iter(dataset='train'):
             pred, loss, _ = model.train_on_batch(*batch, learning_rate=lr)
             i += 1.0
+            prog.update(i, [('train loss', loss)])
             train_loss += loss
         train_loss /= (i or 1)
         train_losses.append(train_loss)
 
         # validation
         i = 0.0
+        prog = Progbar(target=d.num_batches('val'))        
         val_loss = 0.0
-        for batch in tqdm(d.batch_iter(dataset='val'), total=d.num_batches('val')):
-#        for batch in d.batch_iter(training=False):
+#        for batch in tqdm(d.batch_iter(dataset='val'), total=d.num_batches('val')):
+        for batch in d.batch_iter(dataset='val'):
             pred, loss = model.run_on_batch(*batch, learning_rate=lr)
             val_loss += loss
             i += 1.0
+            prog.update(i, [('val loss', loss)])
         val_loss /= (i or 1)
         val_losses.append(val_loss)
 
@@ -101,7 +101,7 @@ try:
             best_valid_loss = val_loss
             print 'INFO: generating plots...'
             filename = checkpoint_dir + '/%s-%s.png' % (c.attention, str(epoch))
-            utils.lineplot(filename, 'Train/Val Losses', 'epoch', 'Loss', 
+            lineplot(filename, 'Train/Val Losses', 'epoch', 'Loss', 
                             [(train_losses, 'train'), (val_losses, 'val')])
             print 'INFO: plot saved to %s' % filename
 

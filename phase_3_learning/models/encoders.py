@@ -61,7 +61,7 @@ class HandmadeEncoder(GraphModule):
         self.embedding_size = embedding_size
         self.hidden_size = hidden_size
         self.max_source_len = max_source_len
-        self.batch_size     # TODO - PULL THIS FROM TENSOR SHAPE GET RID OF PARAM
+        self.batch_size = batch_size    # TODO - PULL THIS FROM TENSOR SHAPE GET RID OF PARAM
 
 
     def _build(self, inputs, lengths):
