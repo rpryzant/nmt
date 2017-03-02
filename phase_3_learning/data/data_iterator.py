@@ -36,6 +36,34 @@ class Dataset(object):
         self.indices = self.make_splits(self.valid_indices)
 
 
+    def reconstruct_target(self, yhat_indices):
+        """ reconstructs a sentance in the target language  
+            TODO - UNK REPLACEMENT FROM ATTENTION
+        """
+        if yhat_indices[0] == self.ly_w_to_i[Constants.END]:
+            yhat_indices = yhat_indices[1:]
+        out = []
+        for yi in yhat_indices:
+            if yi == self.ly_w_to_i[Constants.START]:
+                break
+            out.append(self.ly_i_to_w[yi])
+        return out
+
+
+    def reconstruct_source(self, x_indices):
+        """ reconstructs a sentence in the target language
+        """ 
+        if x_indices[0] == self.lx_w_to_i[Constants.END]:  # input was reversed
+            x_indices = x_indices[1:]
+        out = []
+        for yi in x_indices:
+            if yi == self.lx_w_to_i[Constants.START]:
+                break
+            out.append(self.lx_i_to_w[yi])
+        return out
+
+        return [self.lx_i_to_w[xi] for xi in x_indices]
+
     def parse_vocab(self, vocab_file):
         w_to_idx = {}
         for i, w in enumerate(open(vocab_file)):
@@ -53,7 +81,7 @@ class Dataset(object):
         val = indices[len(train): N - train_test_n]
         test = indices[len(train) + len(val):]
 
-        return {'train': train, 'val': val, 'tset': test}
+        return {'train': train, 'val': val, 'test': test}
 
 
     def num_batches(self, dataset='train'):

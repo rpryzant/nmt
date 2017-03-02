@@ -14,7 +14,7 @@ Decoder  (collects args, builds decoder vars, hold attention functions)
 
 
 """
-
+import numpy as np
 import tensorflow as tf
 from graph_module import GraphModule
 import sys; sys.path.append('../')    # sigh 

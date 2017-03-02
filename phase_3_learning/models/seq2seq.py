@@ -32,7 +32,9 @@ class BaseModel():
 
 
 class Seq2SeqV3(object):
-    def __init__(self, config, dataset, testing=False, model_path=None):
+    def __init__(self, config, dataset, sess, testing=False):
+        self.sess                 = sess
+
         self.src_vocab_size       = config.src_vocab_size
         self.target_vocab_size    = config.target_vocab_size
         self.max_source_len       = config.max_source_len
@@ -79,27 +81,29 @@ class Seq2SeqV3(object):
         self.train_step = self.backward_pass(self.loss)
 
         # tf boilerplate
-        os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-        gpu_options = tf.GPUOptions(allow_growth=True)
-        self.sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options, allow_soft_placement=True))
-        self.sess.run(tf.global_variables_initializer())
+#        os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+#        gpu_options = tf.GPUOptions(allow_growth=True)
+#        self.sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options, allow_soft_placement=True))
 
         self.saver = tf.train.Saver()
-        if model_path is not None:
-            self.saver.restore(self.sess, model_path)
 
 
     def save(self, path):
         self.saver.save(self.sess, path, global_step=self.global_step)
 
 
-    def load(self, ckpt_dir):
-        print("[*] Reading checkpoints...")
-        ckpt = tf.train.get_checkpoint_state(ckpt_dir)
-        if ckpt and ckpt.model_checkpoint_path:
-            self.saver.restore(self.sess, ckpt.model_checkpoint_path)
+    def load(self, filepath=None, dir=None):
+        print("\t Reading checkpoints...")
+        if dir is not None:
+            ckpt = tf.train.get_checkpoint_state(dir)
+            if ckpt and ckpt.model_checkpoint_path:
+                self.saver.restore(self.sess, ckpt.model_checkpoint_path)
+            else:
+                raise Exception("\t No checkpoint found")
+        elif filepath is not None:
+            self.saver.restore(self.sess, filepath)
         else:
-            raise Exception("[!] No checkpoint found")
+            raise Exception('\tERROR: must provide a checkpoint filepath or directory')
 
 
     def get_embeddings(self, source, target):
@@ -258,7 +262,7 @@ class Seq2SeqV3(object):
 
 
     def run_on_batch(self, x_batch, x_lens, y_batch, y_lens, learning_rate=1.0):
-        """ "predict" on a batch while the model is in training mode (for validation use)
+        """ "predict" on a batch while the model is in training mode (for validation purposes)
         """
         logits, loss = self.sess.run([self.decoder_output, self.loss],
                                 feed_dict={
@@ -266,7 +270,7 @@ class Seq2SeqV3(object):
                                     self.source_len: x_lens,
                                     self.target: y_batch,
                                     self.target_len: y_lens,
-                                    self.dropout: self.train_dropout,
+                                    self.dropout: 0.0,
                                     self.learning_rate: learning_rate
                                 })
 
@@ -274,7 +278,7 @@ class Seq2SeqV3(object):
 
 
 
-    def predict_on_batch(self, x_batch, x_lens, learning_rate=1.0):
+    def predict_on_batch(self, x_batch, x_lens):
         """ predict translation for a batch of inputs. for testing mode only.
         """
         assert self.testing, 'ERROR: model must be in test mode to make predictions!'
@@ -283,10 +287,9 @@ class Seq2SeqV3(object):
                                     self.source: x_batch,
                                     self.source_len: x_lens,
                                     self.dropout: 0.0,
-                                    self.learning_rate: learning_rate
                                 })
 
-        return np.argmax(logits, axis=2), logits
+        return np.argmax(logits, axis=2)
 
 
 

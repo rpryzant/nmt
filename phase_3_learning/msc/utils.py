@@ -18,7 +18,7 @@ class Config:
     embedding_size    = 256
     num_layers        = 1
     attention         = 'bilinear'       # accepted values: [off, dot, bilinear]
-    encoder_type      = 'handmade'    # [default, bidirectional, handmade, handmade_bidirectional]
+    encoder_type      = 'handmade_bidirectional'    # [default, bidirectional, handmade, handmade_bidirectional]
     decoder_type      = 'argmax'    # [default]
 
     epochs            = 35
