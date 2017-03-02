@@ -9,8 +9,8 @@ it as-is, the model will overfit on a subset of the provided data.
 
 
 === USAGE
-python python main.py datasets/ en ja [checkpoint path to load from]
-
+python python main.py datasets/ [job name] [OPTIONAL : checkpoint file]
+python main.py datasets/ test checkpoints_mine/checkpoint-11-12936
 """
 import numpy as np
 from data.data_iterator import Dataset
