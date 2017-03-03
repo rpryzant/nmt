@@ -32,7 +32,7 @@ model_path = sys.argv[3] if len(sys.argv) > 3 else None
 
 
 c = Config()
-c.src_vocab_size = file_length(data_loc + c.x_vocab)    # hacky...make better
+c.src_vocab_size = file_length(data_loc + c.x_vocab)    # TODO hacky...make better
 c.target_vocab_size = file_length(data_loc + c.y_vocab)
 
 
@@ -86,8 +86,7 @@ try:
         val_losses = []
 
 
-
-        for epoch in range(1):
+        for epoch in range(c.epochs):
             start = time.time()
 
             # training
@@ -131,46 +130,63 @@ try:
 
             seconds = (time.time() - start)
             seconds_per_batch = seconds / (d.num_batches('train') + d.num_batches('val'))
-            LOGGER.log('INFO: epoch,', epoch, 'train loss,', train_loss, 'val loss,', \
-                        val_loss, 'time, ', seconds, 'per batch ', seconds_per_batch, \
-                        'lr: ' , lr)
-            print 'HERE'
-            model.save(os.path.join(checkpoint_dir,'checkpoint'))
-            print 'SAVED'
+            LOGGER.log('INFO: epoch: ' + str(epoch))
+            LOGGER.log('INFO: train loss: ' + str(train_loss))
+            LOGGER.log('INFO: val loss: ' + str(val_loss))
+            LOGGER.log('INFO: time: ' + str(seconds))
+            LOGGER.log('INFO: seconds per batch: ' + str(seconds_per_batch))
+            LOGGER.log('INFO: learning rate: ' + str(lr))
+
 
 except KeyboardInterrupt:
-    print 'STOPPED!'
-    tf.reset_default_graph()
+    print '\n\nSTOPPED!\n\n'
+#    LOGGER.log('saving stopping checkpoint...')
+#    model.save(os.path.join(checkpoint_dir,'checkpoint-stopped'))
+#    LOGGER.log('saved!')
+#    tf.reset_default_graph()
+
+
 finally:
     tf.reset_default_graph()
 
     with tf.Session() as sess:
-        YHAT_WRITER = utils.Logger(os.path.join(result_dir, 'yhats'))
-        Y_WRITER = utils.Logger(os.path.join(result_dir, 'ys'))
         LOGGER.log('INFO: building test model...')
         model = Seq2SeqV3(c, d, sess, testing=True)
+#        model.load(filepath=cur_dir + '/saved_models/checkpoint-11-12936')
         model.load(dir=checkpoint_dir)
         LOGGER.log('INFO: model loaded from %s' % checkpoint_dir)            
 
         LOGGER.log('TESTING...')
-        yhats = []
-        ys = []
+        raw_yhats = []
+        raw_ys = []
         i = 0
         prog = Progbar(target=d.num_batches('test'))
         for x_batch, x_lens, y_batch, _ in d.batch_iter(dataset='test'):
-            ys += [d.reconstruct_target(y) for y in y_batch]
+            raw_ys += [y for y in y_batch]
             yhat = model.predict_on_batch(x_batch, x_lens).tolist()
-            yhats += [d.reconstruct_target(y) for y in yhat]
+            raw_yhats += [y for y  in yhat]
             prog.update(i, [])
             i += 1
 
-        YHAT_WRITER.log('\n'.join(' '.join(x.decode('utf-8') for x in s) for s in yhats),
-                        show_time=False)
-        Y_WRITER.log('\n'.join(' '.join(x.decode('utf-8') for x in s) for s in yhats),
-                     show_time=False)
+        RAW_YHAT_WRITER = utils.Logger(os.path.join(result_dir, 'raw_yhats'))
+        RAW_Y_WRITER = utils.Logger(os.path.join(result_dir, 'raw_ys'))
+        RAW_YHAT_WRITER.log('\n'.join(' '.join(str(x).decode('utf-8') for x in s) for s in raw_yhats),
+                            show_time=False)
+        RAW_Y_WRITER.log('\n'.join(' '.join(str(x).decode('utf-8') for x in s) for s in raw_ys),
+                         show_time=False)
 
-        LOGGER.log('RESULT: final BLEU: ', multisentence_bleu(ys, yhats)) 
-        LOGGER.log('RESULT: final RIBES: ', multisentence_ribes(ys, yhats))
+        yhats = [d.reconstruct_target(y) for y in raw_yhats]
+        ys = [d.reconstruct_target(y) for y in raw_ys]
+        YHAT_WRITER = utils.Logger(os.path.join(result_dir, 'yhats'))
+        Y_WRITER = utils.Logger(os.path.join(result_dir, 'ys'))
+        YHAT_WRITER.log('\n'.join(' '.join(x.decode('utf-8') for x in s) for s in yhats),
+                            show_time=False)
+        Y_WRITER.log('\n'.join(' '.join(x.decode('utf-8') for x in s) for s in ys),
+                         show_time=False)
+
+        bleu, ribes = evaluate(ys, yhats)
+        LOGGER.log('RESULT: final BLEU: ' + str(bleu))
+        LOGGER.log('RESULT: final RIBES: ' + str(ribes))
 
 
 
@@ -181,4 +197,4 @@ finally:
     LOGGER.log('INFO: plot saved to %s' % filename)
 
 
-quit()
+    print 'YOU DID IT!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'

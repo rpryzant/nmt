@@ -46,11 +46,11 @@ class Dataset(object):
         """ reconstructs a sentance in the target language  
             TODO - UNK REPLACEMENT FROM ATTENTION
         """
-        if y_indices[0] == self.ly_w_to_i[Constants.END]:
+        while len(y_indices) > 0 and y_indices[0] == self.ly_w_to_i[Constants.START]:
             y_indices = y_indices[1:]
         out = []
         for yi in y_indices:
-            if yi == self.ly_w_to_i[Constants.START]:
+            if yi == self.ly_w_to_i[Constants.END]:
                 break
             out.append(self.ly_i_to_w[yi])
 
@@ -60,7 +60,7 @@ class Dataset(object):
     def reconstruct_source(self, x_indices):
         """ reconstructs a sentence in the target language
         """ 
-        if x_indices[0] == self.lx_w_to_i[Constants.END]:  # input was reversed
+        while x_indices[0] == self.lx_w_to_i[Constants.END]:  # input was reversed
             x_indices = x_indices[1:]
         out = []
         for yi in x_indices:
