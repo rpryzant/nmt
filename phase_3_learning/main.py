@@ -30,6 +30,8 @@ job_id = sys.argv[2]
 model_path = sys.argv[3] if len(sys.argv) > 3 else None
 
 
+
+
 c = Config()
 c.src_vocab_size = file_length(data_loc + c.x_vocab)    # hacky...make better
 c.target_vocab_size = file_length(data_loc + c.y_vocab)
@@ -41,65 +43,36 @@ i = 0
 print 'INFO: dataset built. Train size: ', d.get_size('train'), 'val size: ', d.get_size('val')
 #d.subset(13)    # take only X sentances
 #print 'INFO: subset built. Train size: ', d.train_N, 'val size: ', d.val_N
-print next(d.batch_iter(dataset='test'))[2][0]
 
-print 'INFO: building checkpoint dir...'
+
+print 'INFO: building run dir and logger...'
 cur_dir = os.path.dirname(os.path.realpath(__file__)) + '/'
-if not os.path.exists(cur_dir + c.checkpoint_dir):
-    os.mkdir(cur_dir + c.checkpoint_dir)
-checkpoint_dir = cur_dir + c.checkpoint_dir + '/%s' % job_id
+if not os.path.exists(cur_dir + job_id):
+    os.mkdir(cur_dir + job_id)
+run_dir = cur_dir + job_id
+checkpoint_dir = os.path.join(run_dir, c.checkpoint_dir)
+fig_dir = os.path.join(run_dir, c.fig_dir)
+result_dir = os.path.join(run_dir, c.result_dir)
 if not os.path.exists(checkpoint_dir):
     os.mkdir(checkpoint_dir)
-print 'INFO: checkpoints ready to go'
+LOGGER = utils.Logger(os.path.join(run_dir, 'log.txt'))
+
+print 'INFO: run dir built at [%s]' % run_dir
+print "i'll be shutting up now. Bye bye."
 
 
 with tf.Session() as sess:
-    print 'INFO: building model...'
-    model = Seq2SeqV3(c, d, sess, testing=True)
+    LOGGER.log('INFO: building train model...')
+    model = Seq2SeqV3(c, d, sess, testing=False)
     if model_path is not None:
         model.load(filepath=model_path)
-        print 'INFO: model loaded from %s' % model_path
+        LOGGER.log('INFO: model loaded from %s' % model_path)
     else:
         sess.run(tf.global_variables_initializer())
-        print 'INFO: model built'
+        LOGGER.log('INFO: model built')
 
 
-    print 'TESTING...'
-    x_batch, x_lens, y_batch, _ = next(d.batch_iter(dataset='test'))
-    ys = [d.reconstruct_target(y) for y in y_batch]
-    yhats = [d.reconstruct_target(y) for y in model.predict_on_batch(x_batch, x_lens).tolist()]
-    print multisentence_bleu(yhats, ys)
-    print multisentence_ribes(yhats, ys)
-
-
-tf.reset_default_graph()
-
-
-with tf.Session() as sess:
-    print 'INFO: building a SECOND model...'
-    model = Seq2SeqV3(c, d, sess, testing=True)
-    if model_path is not None:
-        model.load(filepath=model_path)
-        print 'INFO: model loaded from %s' % model_path
-    else:
-        sess.run(tf.global_variables_initializer())
-        print 'INFO: model built'
-
-
-
-    print 'TESTING...'
-    x_batch, x_lens, _, _ = next(d.batch_iter(dataset='test'))
-    print y_batch[0]
-    print model.predict_on_batch(x_batch, x_lens)[0][0]
-
-tf.reset_default_graph()
-
-quit()
-
-
-
-with tf.Session() as sess:
-    print 'INFO: training...'
+    LOGGER.log('INFO: training...')
     lr = c.learning_rate
     epochs = int(c.epochs)
 
@@ -114,7 +87,6 @@ with tf.Session() as sess:
             i = 0
             prog = Progbar(target=d.num_batches('train'))
             train_loss = 0.0
-    #        for batch in tqdm(d.batch_iter(dataset='train'), total=d.num_batches('train')):
             for batch in d.batch_iter(dataset='train'):
                 pred, loss, _ = model.train_on_batch(*batch, learning_rate=lr)
                 i += 1.0
@@ -127,7 +99,6 @@ with tf.Session() as sess:
             i = 0.0
             prog = Progbar(target=d.num_batches('val'))        
             val_loss = 0.0
-    #        for batch in tqdm(d.batch_iter(dataset='val'), total=d.num_batches('val')):
             for batch in d.batch_iter(dataset='val'):
                 pred, loss = model.run_on_batch(*batch, learning_rate=lr)
                 val_loss += loss
@@ -137,33 +108,66 @@ with tf.Session() as sess:
             val_losses.append(val_loss)
 
             if epoch > 0 and val_loss < best_valid_loss:
-                print 'INFO: new best validation loss!...'
+                LOGGER.log('INFO: new best validation loss!...')
                 best_valid_loss = val_loss
-                print 'INFO: generating plots...'
-                filename = checkpoint_dir + '/%s-%s.png' % (c.attention, str(epoch))
+                LOGGER.log('INFO: generating plots...')
+                filename = fig_dir + '/%s-%s.png' % (c.attention, str(epoch))
                 lineplot(filename, 'Train/Val Losses', 'epoch', 'Loss', 
                                 [(train_losses, 'train'), (val_losses, 'val')])
-                print 'INFO: plot saved to %s' % filename
+                LOGGER.log('INFO: plot saved to %s' % filename)
 
-                print 'INFO: saving checkpoint...'
+                LOGGER.log('INFO: saving checkpoint...')
                 checkpoint_loc = checkpoint_dir + '/checkpoint-%s' % epoch
                 model.save(checkpoint_loc)
-                print 'INFO: checkpoint saved to %s' % (checkpoint_loc)
+                LOGGER.log('INFO: checkpoint saved to %s' % (checkpoint_loc))
 
-    #        if epoch > 9 and epoch % 5 == 0 and lr > 0.0025:
-    #            lr = lr * 0.90
 
-            print 'INFO: epoch,', epoch, 'train loss,', train_loss, 'val loss,', val_loss, 'time, ', (time.time() - start), 'lr: ' , lr
+            seconds = (time.time() - start)
+            seconds_per_batch = seconds / (d.num_batches('train') + d.num_batches('val'))
+            LOGGER.log('INFO: epoch,', epoch, 'train loss,', train_loss, 'val loss,', \
+                        val_loss, 'time, ', seconds, 'per batch ', seconds_per_batch, \
+                        'lr: ' , lr)
+
 
     except KeyboardInterrupt:
-        print 'INFO: stopped!'
+        tf.reset_default_graph()
+        with tf.Session() as sess:
+            YHAT_WRITER = utils.Logger(os.path.join(result_dir, 'yhats'))
+            Y_WRITER = utils.Logger(os.path.join(result_dir, 'ys'))
+
+            LOGGER.log('INFO: building test model...')
+            model = Seq2SeqV3(c, d, sess, testing=True)
+            model.load(dir=checkpoint_dir)
+            LOGGER.log('INFO: model loaded from %s' % checkpoint_dir)            
+
+            LOGGER.log('TESTING...')
+            yhats = []
+            ys = []
+            i = 0
+            prog = Progbar(target=d.num_batches('test'))
+            for x_batch, x_lens, y_batch, _ in d.batch_iter(dataset='test'):
+                ys += [d.reconstruct_target(y) for y in y_batch]
+                yhat = model.predict_on_batch(x_batch, x_lens).tolist()
+                yhats += [d.reconstruct_target(y) for y in yhat]
+                prog.update(i, [])
+                i += 1
+
+            YHAT_WRITER.log('\n'.join(' '.join(x.decode('utf-8') for x in s) for s in yhats),
+                            show_time=False)
+            Y_WRITER.log('\n'.join(' '.join(x.decode('utf-8') for x in s) for s in yhats),
+                         show_time=False)
+
+            LOGGER.log('RESULT: final BLEU: ', multisentence_bleu(ys, yhats)) 
+            LOGGER.log('RESULT: final RIBES: ', multisentence_ribes(ys, yhats))
 
     finally:
-        print 'INFO: generating plots...'
-        filename = checkpoint_dir + '/final_losses.png'
+        tf.reset_default_graph()
+
+        LOGGER.log('INFO: generating plots...')
+        filename = fig_dir + '/final_losses.png'
         lineplot(filename, 'Train/Val Losses', 'epoch', 'Loss', 
                         [(train_losses, 'train'), (val_losses, 'val')])
-        print 'INFO: plot saved to %s' % filename
+        LOGGER.log('INFO: plot saved to %s' % filename)
 
 
 quit()

@@ -5,6 +5,8 @@ import os
 import numpy as np
 import sys
 import time
+import datetime
+import codecs
 
 
 class Config:
@@ -26,7 +28,9 @@ class Config:
     optimizer         ='Adam' #     # [SGD, Adam, Adagrad]
     learning_rate     = 0.0003    # [1.0 for sgd, 0.0003 for adam] work well
     max_grad_norm     = 5.0
-    checkpoint_dir    = 'checkpoints_mine'
+    checkpoint_dir    = 'checkpoints'
+    fig_dir           = 'figs'
+    result_dir        = 'results'
 
     x_corpus = 'corpus.en.cleaned.tok.150k'
     x_vocab = 'vocab.15k.en'
@@ -54,6 +58,27 @@ def lineplot(filename, title, xlab, ylab, curves):
     plt.title(title)
     plt.savefig(filename)
     plt.close()
+
+
+
+class Logger():
+    def __init__(self, location):
+        self.f = codecs.open(location, 'w', encoding='utf8')
+
+    def log(self, s, show_time=True):
+        if show_time:
+            time = time.time()
+            ts = datetime.datetime.fromtimestamp(time).strftime('%Y-%m-%d %H:%M:%S')
+            self.f.write(ts + ': '  s + '\n')
+        else:
+            self.f.write(s + '\n')
+
+
+    def close(self):
+        self.f.close()
+
+
+
 
 
 class Progbar(object):

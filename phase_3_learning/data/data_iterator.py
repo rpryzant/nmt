@@ -36,17 +36,18 @@ class Dataset(object):
         self.indices = self.make_splits(self.valid_indices)
 
 
-    def reconstruct_target(self, yhat_indices):
+    def reconstruct_target(self, y_indices):
         """ reconstructs a sentance in the target language  
             TODO - UNK REPLACEMENT FROM ATTENTION
         """
-        if yhat_indices[0] == self.ly_w_to_i[Constants.END]:
-            yhat_indices = yhat_indices[1:]
+        if y_indices[0] == self.ly_w_to_i[Constants.END]:
+            y_indices = y_indices[1:]
         out = []
-        for yi in yhat_indices:
+        for yi in y_indices:
             if yi == self.ly_w_to_i[Constants.START]:
                 break
             out.append(self.ly_i_to_w[yi])
+
         return out
 
 
