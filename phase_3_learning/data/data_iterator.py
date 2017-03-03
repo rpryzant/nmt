@@ -137,7 +137,7 @@ class Dataset(object):
         end = self.ly_w_to_i[Constants.END]
         y_batch = np.array(self.ly)[indices[batch_index: batch_index + self.batch_size]].tolist()
         y_batch = [
-            post_pad(([start] + [self.ly_w_to_i.get(yi, unk) for yi in y] + [end])[::-1]) \
+            post_pad(([start] + [self.ly_w_to_i.get(yi, unk) for yi in y] + [end])) \
                 for y in y_batch
             ]
         y_lens = np.count_nonzero(np.array(y_batch), axis=1).tolist()

@@ -12,8 +12,8 @@ import codecs
 class Config:
     src_vocab_size    = -1   # unk, pad, start, end
     target_vocab_size = -1
-    max_source_len    = 40
-    max_target_len    = 40
+    max_source_len    = 50
+    max_target_len    = 50
 
     batch_size        = 128
     hidden_size       = 512

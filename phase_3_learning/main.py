@@ -61,87 +61,83 @@ make_dir(result_dir)
 LOGGER = utils.Logger(os.path.join(run_dir, 'log'))
 
 print 'INFO: run dir built at [%s]' % run_dir
-print "i'll be shutting up now. Bye bye."
-print 'logs at %s' % os.path.join(result_dir, 'log')
+print "INFO: i'll be shutting up now. Bye bye."
+print 'INFO: logs at %s' % os.path.join(result_dir, 'log')
 
 
 
-
-#try:
-with tf.Session() as sess:
-    LOGGER.log('INFO: building train model...')
-    model = Seq2SeqV3(c, d, sess, testing=False)
-    if model_path is not None:
-        model.load(filepath=model_path)
-        LOGGER.log('INFO: model loaded from %s' % model_path)
-    else:
-        sess.run(tf.global_variables_initializer())
-        LOGGER.log('INFO: model built')
-
-    LOGGER.log('INFO: training...')
-    lr = c.learning_rate
-    epochs = int(c.epochs)
-
-    best_valid_loss = float("inf")
-    train_losses = []
-    val_losses = []
-
-
-
-    for epoch in range(1):
-        start = time.time()
-
-        # training
-        i = 0
-        prog = Progbar(target=d.num_batches('train'))
-        train_loss = 0.0
-        for batch in d.batch_iter(dataset='train'):
-            pred, loss, _ = model.train_on_batch(*batch, learning_rate=lr)
-            i += 1.0
-            prog.update(i, [('train loss', loss)])
-            train_loss += loss
-        train_loss /= (i or 1)
-        train_losses.append(train_loss)
-
-        # validation
-        i = 0.0
-        prog = Progbar(target=d.num_batches('val'))        
-        val_loss = 0.0
-        for batch in d.batch_iter(dataset='val'):
-            pred, loss = model.run_on_batch(*batch, learning_rate=lr)
-            val_loss += loss
-            i += 1.0
-            prog.update(i, [('val loss', loss)])
-        val_loss /= (i or 1)
-        val_losses.append(val_loss)
-
-        if epoch > 0 and val_loss < best_valid_loss:
-            LOGGER.log('INFO: new best validation loss!...')
-            best_valid_loss = val_loss
-            LOGGER.log('INFO: generating plots...')
-            filename = fig_dir + '/%s-%s.png' % (c.attention, str(epoch))
-            lineplot(filename, 'Train/Val Losses', 'epoch', 'Loss', 
-                            [(train_losses, 'train'), (val_losses, 'val')])
-            LOGGER.log('INFO: plot saved to %s' % filename)
-
-            LOGGER.log('INFO: saving checkpoint...')
-            checkpoint_loc = checkpoint_dir + '/checkpoint-%s' % epoch
-            model.save(checkpoint_loc)
-            LOGGER.log('INFO: checkpoint saved to %s' % (checkpoint_loc))
-
-
-        seconds = (time.time() - start)
-        seconds_per_batch = seconds / (d.num_batches('train') + d.num_batches('val'))
-        LOGGER.log('INFO: epoch,', epoch, 'train loss,', train_loss, 'val loss,', \
-                    val_loss, 'time, ', seconds, 'per batch ', seconds_per_batch, \
-                    'lr: ' , lr)
-        print 'HERE'
-        model.save(os.path.join(checkpoint_dir,'checkpoint'))
-        print 'SAVED'
-
-quit()
 try:
-    pass
+    with tf.Session() as sess:
+        LOGGER.log('INFO: building train model...')
+        model = Seq2SeqV3(c, d, sess, testing=False)
+        if model_path is not None:
+            model.load(filepath=model_path)
+            LOGGER.log('INFO: model loaded from %s' % model_path)
+        else:
+            sess.run(tf.global_variables_initializer())
+            LOGGER.log('INFO: model built')
+
+        LOGGER.log('INFO: training...')
+        lr = c.learning_rate
+        epochs = int(c.epochs)
+
+        best_valid_loss = float("inf")
+        train_losses = []
+        val_losses = []
+
+
+
+        for epoch in range(1):
+            start = time.time()
+
+            # training
+            i = 0
+            prog = Progbar(target=d.num_batches('train'))
+            train_loss = 0.0
+            for batch in d.batch_iter(dataset='train'):
+                pred, loss, _ = model.train_on_batch(*batch, learning_rate=lr)
+                i += 1.0
+                prog.update(i, [('train loss', loss)])
+                train_loss += loss
+            train_loss /= (i or 1)
+            train_losses.append(train_loss)
+
+            # validation
+            i = 0.0
+            prog = Progbar(target=d.num_batches('val'))        
+            val_loss = 0.0
+            for batch in d.batch_iter(dataset='val'):
+                pred, loss = model.run_on_batch(*batch, learning_rate=lr)
+                val_loss += loss
+                i += 1.0
+                prog.update(i, [('val loss', loss)])
+            val_loss /= (i or 1)
+            val_losses.append(val_loss)
+
+            if epoch > 0 and val_loss < best_valid_loss:
+                LOGGER.log('INFO: new best validation loss!...')
+                best_valid_loss = val_loss
+                LOGGER.log('INFO: generating plots...')
+                filename = fig_dir + '/%s-%s.png' % (c.attention, str(epoch))
+                lineplot(filename, 'Train/Val Losses', 'epoch', 'Loss', 
+                                [(train_losses, 'train'), (val_losses, 'val')])
+                LOGGER.log('INFO: plot saved to %s' % filename)
+
+                LOGGER.log('INFO: saving checkpoint...')
+                checkpoint_loc = checkpoint_dir + '/checkpoint-%s' % epoch
+                model.save(checkpoint_loc)
+                LOGGER.log('INFO: checkpoint saved to %s' % (checkpoint_loc))
+
+
+            seconds = (time.time() - start)
+            seconds_per_batch = seconds / (d.num_batches('train') + d.num_batches('val'))
+            LOGGER.log('INFO: epoch,', epoch, 'train loss,', train_loss, 'val loss,', \
+                        val_loss, 'time, ', seconds, 'per batch ', seconds_per_batch, \
+                        'lr: ' , lr)
+            print 'HERE'
+            model.save(os.path.join(checkpoint_dir,'checkpoint'))
+            print 'SAVED'
+
 except KeyboardInterrupt:
     print 'STOPPED!'
     tf.reset_default_graph()
