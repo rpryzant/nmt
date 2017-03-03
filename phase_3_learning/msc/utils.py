@@ -63,7 +63,7 @@ def lineplot(filename, title, xlab, ylab, curves):
 
 class Logger():
     def __init__(self, location):
-        self.f = codecs.open(location, 'w', encoding='utf8')
+        self.f = codecs.open(location, 'w', encoding='utf-8')
 
     def log(self, s, show_time=True):
         if show_time:
