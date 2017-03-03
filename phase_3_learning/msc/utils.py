@@ -32,10 +32,14 @@ class Config:
     fig_dir           = 'figs'
     result_dir        = 'results'
 
-    x_corpus = 'corpus.en.cleaned.tok.150k'
+    x_corpus = 'corpus.en.cleaned.tok'
     x_vocab = 'vocab.15k.en'
-    y_corpus = 'corpus.ja.cleaned.tok.150k'
+    y_corpus = 'corpus.ja.cleaned.tok'
     y_vocab = 'vocab.15k.ja'
+
+    train = 'train.100k'
+    test = 'test.100k'
+    val = 'val.100k'
 
 
 def file_length(f):

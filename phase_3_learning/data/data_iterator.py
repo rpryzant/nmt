@@ -20,6 +20,12 @@ class Dataset(object):
         ly_corpus = os.path.join(self.data_root, config.y_corpus)
         ly_vocab = os.path.join(self.data_root, config.y_vocab)
 
+        self.indices = {
+            'train': [int(x.strip()) for x in open(os.path.join(self.data_root, config.train))]
+            'test': [int(x.strip()) for x in open(os.path.join(self.data_root, config.test))]
+            'val': [int(x.strip()) for x in open(os.path.join(self.data_root, config.val))]
+        }
+
         self.batch_index = 0
 
         self.lx_w_to_i, self.lx_i_to_w = self.parse_vocab(lx_vocab)
@@ -29,11 +35,11 @@ class Dataset(object):
         self.ly = [y.strip().split() for y in open(ly_corpus).read().split('\n')]
 
         # minus 2 for start/end tokens
-        self.valid_indices = [i for i in range(len(self.lx)) if\
-                                len(self.lx[i]) < self.max_source_len - 2 and\
-                                len(self.ly[i]) < self.max_target_len - 2]
+        # self.valid_indices = [i for i in range(len(self.lx)) if\
+        #                         len(self.lx[i]) < self.max_source_len - 2 and\
+        #                         len(self.ly[i]) < self.max_target_len - 2]
 
-        self.indices = self.make_splits(self.valid_indices)
+        # self.indices = self.make_splits(self.valid_indices)
 
 
     def reconstruct_target(self, y_indices):
