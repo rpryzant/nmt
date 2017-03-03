@@ -67,9 +67,9 @@ class Logger():
 
     def log(self, s, show_time=True):
         if show_time:
-            time = time.time()
-            ts = datetime.datetime.fromtimestamp(time).strftime('%Y-%m-%d %H:%M:%S')
-            self.f.write(ts + ': '  s + '\n')
+            t = time.time()
+            ts = datetime.datetime.fromtimestamp(t).strftime('%Y-%m-%d %H:%M:%S')
+            self.f.write(ts + ': ' +  s + '\n')
         else:
             self.f.write(s + '\n')
 
