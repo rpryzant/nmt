@@ -21,8 +21,8 @@ class Dataset(object):
         ly_vocab = os.path.join(self.data_root, config.y_vocab)
 
         self.indices = {
-            'train': [int(x.strip()) for x in open(os.path.join(self.data_root, config.train))]
-            'test': [int(x.strip()) for x in open(os.path.join(self.data_root, config.test))]
+            'train': [int(x.strip()) for x in open(os.path.join(self.data_root, config.train))],
+            'test': [int(x.strip()) for x in open(os.path.join(self.data_root, config.test))],
             'val': [int(x.strip()) for x in open(os.path.join(self.data_root, config.val))]
         }
 
