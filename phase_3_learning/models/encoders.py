@@ -20,7 +20,7 @@ class DefaultEncoder(GraphModule):
 
 class DefaultBidirectionalEncoder(GraphModule):
     def __init__(self, cell, name='default_bidirectional'):
-        super(DefautlBidirectionalEncoder, self).__init__(name)
+        super(DefaultBidirectionalEncoder, self).__init__(name)
         self.cell = cell
 
     def _build(self, inputs, lengths):
@@ -38,14 +38,14 @@ class DefaultBidirectionalEncoder(GraphModule):
 
 class StackedBidirectionalEncoder(GraphModule):
     def __init__(self, cell, name='default_bidirectional'):
-        super(DefautlBidirectionalEncoder, self).__init__(name)
+        super(StackedBidirectionalEncoder, self).__init__(name)
         self.cell = cell
 
     def _build(self, inputs, lengths):
         outputs, output_state_fw, output_state_bw = \
             tf.contrib.rnn.python.ops.rnn.stack_bidirectional_dynamic_rnn(
-                cells_fw=cell._cells,
-                cells_bw=cell._cells,
+                cells_fw=self.cell._cells,
+                cells_bw=self.cell._cells,
                 inputs=inputs,
                 sequence_length=lengths,
                 dtype=tf.float32)

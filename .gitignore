@@ -1,3 +1,12 @@
+# stuff
+*~
+.DS_Store
+
+
+
+
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -56,6 +65,7 @@ local_settings.py
 # Flask stuff:
 instance/
 .webassets-cache
+
 
 # Scrapy stuff:
 .scrapy

@@ -98,6 +98,7 @@ try:
                 i += 1.0
                 prog.update(i, [('train loss', loss)])
                 train_loss += loss
+                break
             train_loss /= (i or 1)
             train_losses.append(train_loss)
 
@@ -110,10 +111,11 @@ try:
                 val_loss += loss
                 i += 1.0
                 prog.update(i, [('val loss', loss)])
+                break
             val_loss /= (i or 1)
             val_losses.append(val_loss)
 
-            if epoch > 0 and val_loss < best_valid_loss:
+            if val_loss < best_valid_loss:
                 LOGGER.log('INFO: new best validation loss!...')
                 best_valid_loss = val_loss
                 LOGGER.log('INFO: generating plots...')
@@ -167,6 +169,7 @@ finally:
             raw_yhats += [y for y  in yhat]
             prog.update(i, [])
             i += 1
+            break
 
         RAW_YHAT_WRITER = utils.Logger(os.path.join(result_dir, 'raw_yhats'))
         RAW_Y_WRITER = utils.Logger(os.path.join(result_dir, 'raw_ys'))

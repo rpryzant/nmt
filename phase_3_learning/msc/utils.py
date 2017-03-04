@@ -15,15 +15,15 @@ class Config:
     max_source_len    = 50
     max_target_len    = 50
 
-    batch_size        = 128
+    batch_size        = 64  
     hidden_size       = 512
     embedding_size    = 256
-    num_layers        = 1
+    num_layers        = 2
     attention         = 'bilinear'       # accepted values: [off, dot, bilinear]
-    encoder_type      = 'handmade'    # [default, bidirectional, handmade, handmade_bidirectional]
+    encoder_type      = 'handmade_bidirectional'    # [default, bidirectional, handmade, handmade_bidirectional]
     decoder_type      = 'argmax'    # [default]
 
-    epochs            = 10
+    epochs            = 1
     dropout_rate      = 0.2
     optimizer         ='Adam' #     # [SGD, Adam, Adagrad]
     learning_rate     = 0.0003    # [1.0 for sgd, 0.0003 for adam] work well
