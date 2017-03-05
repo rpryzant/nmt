@@ -19,7 +19,7 @@ This section contains a grab-bag of tools and algorithms for working with langua
   * The sentence-similarity algorithms proposed by [[Utiyama et al.]](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.585.1364&rep=rep1&type=pdf) and [[Isahara et al]](http://dl.acm.org/citation.cfm?id=1075106)
 
 ### Phase 3: Neural Machine Translation Translation System
-This is a complete Japanese-English NMT system based on [[Sundermeyer et al.]](https://pdfs.semanticscholar.org/d29c/f0f457ec2089fd4d776ef9a246de810be689.pdf) and [[Luong et al.]](https://arxiv.org/abs/1508.04025). It was designed and implemented with ease-of-use and extensibility in mind.
+This is a complete Japanese-English NMT system based on [[Sundermeyer et al.]](https://pdfs.semanticscholar.org/d29c/f0f457ec2089fd4d776ef9a246de810be689.pdf) and [[Luong et al.]](https://arxiv.org/abs/1508.04025). It was designed with ease-of-use and extensibility in mind.
 
 # Requirements
 
