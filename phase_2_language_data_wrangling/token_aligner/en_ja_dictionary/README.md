@@ -1,0 +1,1 @@
+Dictionaries aquired from http://users.monash.edu/~jwb/wwwjdicinf.html#dicfil_tag
