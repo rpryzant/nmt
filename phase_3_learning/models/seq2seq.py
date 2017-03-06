@@ -11,7 +11,7 @@ import decoders
 import tensorflow as tf
 import numpy as np
 import os
-
+from msc.constants import Constants
 
 
 
@@ -65,14 +65,10 @@ class Seq2SeqV3(object):
         self.dropout    = tf.placeholder(tf.float32, name="dropout")
         self.global_step = tf.Variable(0, dtype=tf.int32, trainable=False, name='global_step')
 
-        # get word vectors for the source and target
-        source_embedded, target_embedded = self.get_embeddings(self.source, self.target)
-
-        # run everything through the encoder and decoder
-        self.decoder_output = self.encode_decode(source=source_embedded,
-                                                 source_len=self.source_len,
-                                                 target=target_embedded,
-                                                 target_len=self.target_len)
+        if self.network_type == 'default':
+            self.decoder_output = self.build_default_seq2seq()
+        else:
+            self.decoder_output = self.build_custom_seq2seq()
 
         # compute average per-word loss across all batches (log perplexity)
         self.loss = self.cross_entropy_sequence_loss(logits=self.decoder_output,
@@ -88,6 +84,59 @@ class Seq2SeqV3(object):
 #        self.sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options, allow_soft_placement=True))
 
         self.saver = tf.train.Saver()
+
+    def build_default_seq2seq(self):
+        with tf.variable_scope('network'):
+            # projection to output embeddings
+            out_embed_W = tf.get_variable("o_embed_W",
+                                               shape=[self.hidden_size, self.target_vocab_size],
+                                               initializer=tf.contrib.layers.xavier_initializer())
+            out_embed_b = tf.get_variable("o_embed_b",
+                                               shape=[self.target_vocab_size],
+                                               initializer=tf.contrib.layers.xavier_initializer())
+            # projection to logits
+            out_W = tf.get_variable("Wo", shape=[self.hidden_size, self.target_vocab_size],
+                                         initializer=tf.contrib.layers.xavier_initializer())
+            out_b = tf.get_variable("bo", shape=[self.target_vocab_size],
+                                         initializer=tf.contrib.layers.xavier_initializer())
+
+            cell = self.build_rnn_cell()
+            source = tf.unstack(self.source, axis=1)
+
+            # if testing, only the first token will be taken. so fill up the target with starts
+            if self.testing:
+                target = tf.constant(np.full((self.batch_size, self.max_target_len), Constants.START_I))
+            else: 
+                target = self.target
+            target = tf.unstack(target, axis=1)
+
+            decoder_output, state = \
+                tf.nn.seq2seq.embedding_attention_seq2seq(
+                    source,
+                    target,
+                    cell,
+                    num_encoder_symbols=self.src_vocab_size,
+                    num_decoder_symbols=self.target_vocab_size,
+                    embedding_size=self.embedding_size,
+                    feed_previous=self.testing,
+                    output_projection=(out_embed_W, out_embed_b))
+            decoder_output = [tf.matmul(x, out_W) + out_b for x in decoder_output]
+            decoder_output = tf.transpose(tf.stack(decoder_output), (1, 0, 2))
+
+        return decoder_output
+
+    def build_custom_seq2seq(self):
+        # get word vectors for the source and target
+        source_embedded, target_embedded = self.get_embeddings(self.source, self.target)
+
+        # run everything through the encoder and decoder
+        decoder_output = self.encode_decode(source=source_embedded,
+                                                 source_len=self.source_len,
+                                                 target=target_embedded,
+                                                 target_len=self.target_len)
+        print decoder_output
+        return decoder_output
+
 
 
     def save(self, path):
@@ -167,35 +216,16 @@ class Seq2SeqV3(object):
 
             runs the source through an encoder, then runs decoder on final hidden state
         """
-        if self.network_type == 'default':
-            with tf.variable_scope('network'):
-                out_proj_W = tf.get_variable("Wo", 
-                                 shape=[self.embedding_size, self.target_vocab_size],
-                                 initializer=tf.contrib.layers.xavier_initializer())
-                out_proj_b = tf.get_variable("bo", shape=[self.target_vocab_size],
-                                 initializer=tf.contrib.layers.xavier_initializer())
-                cell = self.build_rnn_cell()
-                decoder_output, state = \
-                    tf.contrib.legacy_seq2seq.embedding_attention_seq2seq(
-                        source,
-                        target,
-                        cell,
-                        num_encoder_symbols=self.src_vocab_size,
-                        num_decoder_symbols=self.target_vocab_size,
-                        embedding_size=self.embedding_size,
-                        output_projection=(out_proj_W, out_proj_b),
-                        feed_previous=self.testing)
-        else:
-            with tf.variable_scope('encoder'):
-                encoder_cell = self.build_rnn_cell()        
-                outputs, final_state = self.run_encoder(source, source_len, encoder_cell)
+        with tf.variable_scope('encoder'):
+            encoder_cell = self.build_rnn_cell()        
+            outputs, final_state = self.run_encoder(source, source_len, encoder_cell)
 
-            with tf.variable_scope('decoder'):
-                decoder_cell = self.build_rnn_cell()
-                decoder_output = self.run_decoder(target, 
-                                                  target_len, 
-                                                  decoder_cell, 
-                                                  final_state if self.attention == 'off' else outputs)
+        with tf.variable_scope('decoder'):
+            decoder_cell = self.build_rnn_cell()
+            decoder_output = self.run_decoder(target, 
+                                              target_len, 
+                                              decoder_cell, 
+                                              final_state if self.attention == 'off' else outputs)
         return decoder_output
 
 

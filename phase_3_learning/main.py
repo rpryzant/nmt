@@ -65,19 +65,22 @@ print "INFO: i'll be shutting up now. Bye bye."
 print 'INFO: logs at %s' % os.path.join(result_dir, 'log')
 
 
+os.environ['CUDA_VISIBLE_DEVICES'] = '0' # Or whichever device you would like to use
+gpu_options = tf.GPUOptions(allow_growth=True)
+
 
 try:
-    with tf.Session() as sess:
-        LOGGER.log('INFO: building train model...')
+    with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options, allow_soft_placement=True)) as sess:
+        print 'INFO: building train model...'
         model = Seq2SeqV3(c, d, sess, testing=False)
         if model_path is not None:
             model.load(filepath=model_path)
-            LOGGER.log('INFO: model loaded from %s' % model_path)
+            print 'INFO: model loaded from %s' % model_path
         else:
             sess.run(tf.global_variables_initializer())
-            LOGGER.log('INFO: model built')
+            print 'INFO: model built'
 
-        LOGGER.log('INFO: training...')
+        print 'INFO: training...'
         lr = c.learning_rate
         epochs = int(c.epochs)
 
@@ -116,49 +119,49 @@ try:
             val_losses.append(val_loss)
 
             if val_loss < best_valid_loss:
-                LOGGER.log('INFO: new best validation loss!...')
+                print 'INFO: new best validation loss!...'
                 best_valid_loss = val_loss
-                LOGGER.log('INFO: generating plots...')
+                print 'INFO: generating plots...'
                 filename = fig_dir + '/%s-%s.png' % (c.attention, str(epoch))
                 lineplot(filename, 'Train/Val Losses', 'epoch', 'Loss', 
                                 [(train_losses, 'train'), (val_losses, 'val')])
-                LOGGER.log('INFO: plot saved to %s' % filename)
+                print 'INFO: plot saved to %s' % filename
 
-                LOGGER.log('INFO: saving checkpoint...')
+                print 'INFO: saving checkpoint...'
                 checkpoint_loc = checkpoint_dir + '/checkpoint-%s' % epoch
                 model.save(checkpoint_loc)
-                LOGGER.log('INFO: checkpoint saved to %s' % (checkpoint_loc))
+                print 'INFO: checkpoint saved to %s' % (checkpoint_loc)
 
 
             seconds = (time.time() - start)
             seconds_per_batch = seconds / (d.num_batches('train') + d.num_batches('val'))
-            LOGGER.log('INFO: epoch: ' + str(epoch))
-            LOGGER.log('INFO: train loss: ' + str(train_loss))
-            LOGGER.log('INFO: val loss: ' + str(val_loss))
-            LOGGER.log('INFO: time: ' + str(seconds))
-            LOGGER.log('INFO: seconds per batch: ' + str(seconds_per_batch))
-            LOGGER.log('INFO: learning rate: ' + str(lr))
+            print 'INFO: epoch: ' + str(epoch)
+            print 'INFO: train loss: ' + str(train_loss)
+            print 'INFO: val loss: ' + str(val_loss)
+            print 'INFO: time: ' + str(seconds)
+            print 'INFO: seconds per batch: ' + str(seconds_per_batch)
+            print 'INFO: learning rate: ' + str(lr)
 
 
 except KeyboardInterrupt:
     print '\n\nSTOPPED!\n\n'
-#    LOGGER.log('saving stopping checkpoint...')
+#    print 'saving stopping checkpoint...')
 #    model.save(os.path.join(checkpoint_dir,'checkpoint-stopped'))
-#    LOGGER.log('saved!')
+#    print 'saved!')
 #    tf.reset_default_graph()
 
 
 finally:
     tf.reset_default_graph()
 
-    with tf.Session() as sess:
-        LOGGER.log('INFO: building test model...')
+    with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options, allow_soft_placement=True)) as sess:
+        print 'INFO: building test model...'
         model = Seq2SeqV3(c, d, sess, testing=True)
 #        model.load(filepath=cur_dir + '/saved_models/checkpoint-11-12936')
         model.load(dir=checkpoint_dir)
-        LOGGER.log('INFO: model loaded from %s' % checkpoint_dir)            
+        print 'INFO: model loaded from %s' % checkpoint_dir
 
-        LOGGER.log('TESTING...')
+        print 'TESTING...'
         raw_yhats = []
         raw_ys = []
         i = 0
@@ -188,16 +191,16 @@ finally:
                          show_time=False)
 
         bleu, ribes = evaluate(ys, yhats)
-        LOGGER.log('RESULT: final BLEU: ' + str(bleu))
-        LOGGER.log('RESULT: final RIBES: ' + str(ribes))
+        print 'RESULT: final BLEU: ' + str(bleu)
+        print 'RESULT: final RIBES: ' + str(ribes)
 
 
 
-    LOGGER.log('INFO: generating plots...')
+    print 'INFO: generating plots...'
     filename = fig_dir + '/final_losses.png'
     lineplot(filename, 'Train/Val Losses', 'epoch', 'Loss', 
                     [(train_losses, 'train'), (val_losses, 'val')])
-    LOGGER.log('INFO: plot saved to %s' % filename)
+    print 'INFO: plot saved to %s' % filename
 
 
-    print 'YOU DID IT!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+    print '\n\nYOU DID IT!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n\n'
