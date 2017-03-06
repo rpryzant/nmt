@@ -15,13 +15,14 @@ class Config:
     max_source_len    = 50
     max_target_len    = 50
 
-    batch_size        = 64  
+    batch_size        = 128  
     hidden_size       = 512
     embedding_size    = 256
     num_layers        = 2
+    network_type      = 'default'   # [default, custom]   # if default, use tf.contrib.legacy_seq2seq.embedding_attention_seq2seq
     attention         = 'bilinear'       # accepted values: [off, dot, bilinear]
     encoder_type      = 'handmade_bidirectional'    # [default, bidirectional, handmade, handmade_bidirectional]
-    decoder_type      = 'argmax'    # [default]
+    decoder_type      = 'argmax'    # [default, argmax]    
 
     epochs            = 1
     dropout_rate      = 0.2

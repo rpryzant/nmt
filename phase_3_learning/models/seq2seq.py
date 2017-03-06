@@ -42,6 +42,8 @@ class Seq2SeqV3(object):
 
         self.embedding_size       = config.embedding_size
         self.num_layers           = config.num_layers
+
+        self.network_type         = config.network_type
         self.attention            = config.attention
         self.encoder_type         = config.encoder_type
         self.decoder_type         = config.decoder_type
@@ -165,16 +167,35 @@ class Seq2SeqV3(object):
 
             runs the source through an encoder, then runs decoder on final hidden state
         """
-        with tf.variable_scope('encoder'):
-            encoder_cell = self.build_rnn_cell()        
-            outputs, final_state = self.run_encoder(source, source_len, encoder_cell)
+        if self.network_type == 'default':
+            with tf.variable_scope('network'):
+                out_proj_W = tf.get_variable("Wo", 
+                                 shape=[self.embedding_size, self.target_vocab_size],
+                                 initializer=tf.contrib.layers.xavier_initializer())
+                out_proj_b = tf.get_variable("bo", shape=[self.target_vocab_size],
+                                 initializer=tf.contrib.layers.xavier_initializer())
+                cell = self.build_rnn_cell()
+                decoder_output, state = \
+                    tf.contrib.legacy_seq2seq.embedding_attention_seq2seq(
+                        source,
+                        target,
+                        cell,
+                        num_encoder_symbols=self.src_vocab_size,
+                        num_decoder_symbols=self.target_vocab_size,
+                        embedding_size=self.embedding_size,
+                        output_projection=(out_proj_W, out_proj_b),
+                        feed_previous=self.testing)
+        else:
+            with tf.variable_scope('encoder'):
+                encoder_cell = self.build_rnn_cell()        
+                outputs, final_state = self.run_encoder(source, source_len, encoder_cell)
 
-        with tf.variable_scope('decoder'):
-            decoder_cell = self.build_rnn_cell()
-            decoder_output = self.run_decoder(target, 
-                                              target_len, 
-                                              decoder_cell, 
-                                              final_state if self.attention == 'off' else outputs)
+            with tf.variable_scope('decoder'):
+                decoder_cell = self.build_rnn_cell()
+                decoder_output = self.run_decoder(target, 
+                                                  target_len, 
+                                                  decoder_cell, 
+                                                  final_state if self.attention == 'off' else outputs)
         return decoder_output
 
 
