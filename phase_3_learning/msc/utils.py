@@ -19,12 +19,12 @@ class Config:
     hidden_size       = 512
     embedding_size    = 256
     num_layers        = 2
-    network_type      = 'default'   # [default, custom]   # if default, use tf.contrib.legacy_seq2seq.embedding_attention_seq2seq
+    network_type      = 'custom'   # [default, custom]   # if default, use tf.contrib.legacy_seq2seq.embedding_attention_seq2seq
     attention         = 'bilinear'       # accepted values: [off, dot, bilinear]
     encoder_type      = 'handmade_bidirectional'    # [default, bidirectional, handmade, handmade_bidirectional]
     decoder_type      = 'argmax'    # [default, argmax]    
 
-    epochs            = 1
+    epochs            = 14
     dropout_rate      = 0.2
     optimizer         ='Adam' #     # [SGD, Adam, Adagrad]
     learning_rate     = 0.0003    # [1.0 for sgd, 0.0003 for adam] work well

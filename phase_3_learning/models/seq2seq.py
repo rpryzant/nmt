@@ -134,7 +134,6 @@ class Seq2SeqV3(object):
                                                  source_len=self.source_len,
                                                  target=target_embedded,
                                                  target_len=self.target_len)
-        print decoder_output
         return decoder_output
 
 

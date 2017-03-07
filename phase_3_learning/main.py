@@ -34,6 +34,11 @@ model_path = sys.argv[3] if len(sys.argv) > 3 else None
 c = Config()
 c.src_vocab_size = file_length(data_loc + c.x_vocab)    # TODO hacky...make better
 c.target_vocab_size = file_length(data_loc + c.y_vocab)
+if job_id == 'default_default':
+    c.network_type = 'default'
+else:
+    c.encoder_type = job_id
+
 
 
 print 'INFO: building dataset...'
@@ -101,7 +106,7 @@ try:
                 i += 1.0
                 prog.update(i, [('train loss', loss)])
                 train_loss += loss
-                break
+#                break
             train_loss /= (i or 1)
             train_losses.append(train_loss)
 
@@ -114,7 +119,7 @@ try:
                 val_loss += loss
                 i += 1.0
                 prog.update(i, [('val loss', loss)])
-                break
+#                break
             val_loss /= (i or 1)
             val_losses.append(val_loss)
 
@@ -172,7 +177,7 @@ finally:
             raw_yhats += [y for y  in yhat]
             prog.update(i, [])
             i += 1
-            break
+#            break
 
         RAW_YHAT_WRITER = utils.Logger(os.path.join(result_dir, 'raw_yhats'))
         RAW_Y_WRITER = utils.Logger(os.path.join(result_dir, 'raw_ys'))
