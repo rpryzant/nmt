@@ -110,16 +110,28 @@ class Seq2SeqV3(object):
                 target = self.target
             target = tf.unstack(target, axis=1)
 
-            decoder_output, state = \
-                tf.nn.seq2seq.embedding_attention_seq2seq(
-                    source,
-                    target,
-                    cell,
-                    num_encoder_symbols=self.src_vocab_size,
-                    num_decoder_symbols=self.target_vocab_size,
-                    embedding_size=self.embedding_size,
-                    feed_previous=self.testing,
-                    output_projection=(out_embed_W, out_embed_b))
+            if self.attention == 'off':
+                decoder_output, state = \
+                    tf.nn.seq2seq.embedding_rnn_seq2seq(
+                        source,
+                        target,
+                        cell,
+                        num_encoder_symbols=self.src_vocab_size,
+                        num_decoder_symbols=self.target_vocab_size,
+                        embedding_size=self.embedding_size,
+                        feed_previous=self.testing,
+                        output_projection=(out_embed_W, out_embed_b))
+            else:
+                decoder_output, state = \
+                    tf.nn.seq2seq.embedding_attention_seq2seq(
+                        source,
+                        target,
+                        cell,
+                        num_encoder_symbols=self.src_vocab_size,
+                        num_decoder_symbols=self.target_vocab_size,
+                        embedding_size=self.embedding_size,
+                        feed_previous=self.testing,
+                        output_projection=(out_embed_W, out_embed_b))
             decoder_output = [tf.matmul(x, out_W) + out_b for x in decoder_output]
             decoder_output = tf.transpose(tf.stack(decoder_output), (1, 0, 2))
 
@@ -279,6 +291,8 @@ class Seq2SeqV3(object):
                                              self.testing,
                                              self.attention,
                                              self.encoder_type)
+        print encoder_result
+        
         logits = decoder(target, target_len, encoder_result)
         return logits
 

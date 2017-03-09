@@ -1,4 +1,8 @@
+"""
 
+python generate_splits.py [en file] [other file]
+
+"""
 
 import sys; sys.path.append('../')    # sigh 
 from msc.utils import file_length

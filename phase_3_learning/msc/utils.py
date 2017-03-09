@@ -20,7 +20,7 @@ class Config:
     embedding_size    = 256
     num_layers        = 2
     network_type      = 'custom'   # [default, custom]   # if default, use tf.contrib.legacy_seq2seq.embedding_attention_seq2seq
-    attention         = 'bilinear'       # accepted values: [off, dot, bilinear]
+    attention         = 'off'       # accepted values: [off, dot, bilinear]
     encoder_type      = 'handmade_bidirectional'    # [default, bidirectional, handmade, handmade_bidirectional]
     decoder_type      = 'argmax'    # [default, argmax]    
 
@@ -33,11 +33,15 @@ class Config:
     fig_dir           = 'figs'
     result_dir        = 'results'
 
-    x_corpus = 'corpus.en.cleaned.tok'
-    x_vocab = 'vocab.15k.en'
-    y_corpus = 'corpus.ja.cleaned.tok'
-    y_vocab = 'vocab.15k.ja'
+#    x_corpus = 'corpus.en.cleaned.tok'
+#    x_vocab = 'vocab.15k.en'
+#    y_corpus = 'corpus.ja.cleaned.tok'
+#    y_vocab = 'vocab.15k.ja'
 
+    x_corpus = 'train.en'
+    x_vocab = 'vocab.15k.en'
+    y_corpus = 'train.vi'
+    y_vocab = 'vocab.15k.vi'
     train = 'train.100k'
     test = 'test.100k'
     val = 'val.100k'
