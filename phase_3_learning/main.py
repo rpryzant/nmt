@@ -74,138 +74,133 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '0' # Or whichever device you would like to
 gpu_options = tf.GPUOptions(allow_growth=True)
 
 
-try:
-    with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options, allow_soft_placement=True)) as sess:
-        print 'INFO: building train model...'
-        model = Seq2SeqV3(c, d, sess, testing=False)
-        if model_path is not None:
-            model.load(filepath=model_path)
-            print 'INFO: model loaded from %s' % model_path
-        else:
-            sess.run(tf.global_variables_initializer())
-            print 'INFO: model built'
 
-        print 'INFO: training...'
-        lr = c.learning_rate
-        epochs = int(c.epochs)
+with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options, allow_soft_placement=True)) as sess:
+    print 'INFO: building train model...'
+    model = Seq2SeqV3(c, d, sess, testing=False)
+    if model_path is not None:
+        model.load(filepath=model_path)
+        print 'INFO: model loaded from %s' % model_path
+    else:
+        sess.run(tf.global_variables_initializer())
+        print 'INFO: model built'
 
-        best_valid_loss = float("inf")
-        train_losses = []
-        val_losses = []
+    print 'INFO: training...'
+    lr = c.learning_rate
+    epochs = int(c.epochs)
 
-
-        for epoch in range(c.epochs):
-            start = time.time()
-
-            # training
-            i = 0
-            prog = Progbar(target=d.num_batches('train'))
-            train_loss = 0.0
-            for batch in d.batch_iter(dataset='train'):
-                pred, loss, _ = model.train_on_batch(*batch, learning_rate=lr)
-                i += 1.0
-                prog.update(i, [('train loss', loss)])
-                train_loss += loss
-#                break
-            train_loss /= (i or 1)
-            train_losses.append(train_loss)
-
-            # validation
-            i = 0.0
-            prog = Progbar(target=d.num_batches('val'))        
-            val_loss = 0.0
-            for batch in d.batch_iter(dataset='val'):
-                pred, loss = model.run_on_batch(*batch, learning_rate=lr)
-                val_loss += loss
-                i += 1.0
-                prog.update(i, [('val loss', loss)])
-#                break
-            val_loss /= (i or 1)
-            val_losses.append(val_loss)
-
-            if val_loss < best_valid_loss:
-                print 'INFO: new best validation loss!...'
-                best_valid_loss = val_loss
-                print 'INFO: generating plots...'
-                filename = fig_dir + '/%s-%s.png' % (c.attention, str(epoch))
-                lineplot(filename, 'Train/Val Losses', 'epoch', 'Loss', 
-                                [(train_losses, 'train'), (val_losses, 'val')])
-                print 'INFO: plot saved to %s' % filename
-
-                print 'INFO: saving checkpoint...'
-                checkpoint_loc = checkpoint_dir + '/checkpoint-%s' % epoch
-                model.save(checkpoint_loc)
-                print 'INFO: checkpoint saved to %s' % (checkpoint_loc)
+    best_valid_loss = float("inf")
+    train_losses = []
+    val_losses = []
 
 
-            seconds = (time.time() - start)
-            seconds_per_batch = seconds / (d.num_batches('train') + d.num_batches('val'))
-            print 'INFO: epoch: ' + str(epoch)
-            print 'INFO: train loss: ' + str(train_loss)
-            print 'INFO: val loss: ' + str(val_loss)
-            print 'INFO: time: ' + str(seconds)
-            print 'INFO: seconds per batch: ' + str(seconds_per_batch)
-            print 'INFO: learning rate: ' + str(lr)
+    for epoch in range(c.epochs):
+        start = time.time()
 
-
-except KeyboardInterrupt:
-    print '\n\nSTOPPED!\n\n'
-#    print 'saving stopping checkpoint...')
-#    model.save(os.path.join(checkpoint_dir,'checkpoint-stopped'))
-#    print 'saved!')
-#    tf.reset_default_graph()
-
-
-finally:
-    tf.reset_default_graph()
-
-    with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options, allow_soft_placement=True)) as sess:
-        print 'INFO: building test model...'
-        model = Seq2SeqV3(c, d, sess, testing=True)
-#        model.load(filepath=cur_dir + '/saved_models/checkpoint-11-12936')
-        model.load(dir=checkpoint_dir)
-        print 'INFO: model loaded from %s' % checkpoint_dir
-
-        print 'TESTING...'
-        raw_yhats = []
-        raw_ys = []
+        # training
         i = 0
-        prog = Progbar(target=d.num_batches('test'))
-        for x_batch, x_lens, y_batch, _ in d.batch_iter(dataset='test'):
-            raw_ys += [y for y in y_batch]
-            yhat = model.predict_on_batch(x_batch, x_lens).tolist()
-            raw_yhats += [y for y  in yhat]
-            prog.update(i, [])
-            i += 1
+        prog = Progbar(target=d.num_batches('train'))
+        train_loss = 0.0
+        for batch in d.batch_iter(dataset='train'):
+            pred, loss, _ = model.train_on_batch(*batch, learning_rate=lr)
+            i += 1.0
+            prog.update(i, [('train loss', loss)])
+            train_loss += loss
 #            break
+        train_loss /= (i or 1)
+        train_losses.append(train_loss)
 
-        RAW_YHAT_WRITER = utils.Logger(os.path.join(result_dir, 'raw_yhats'))
-        RAW_Y_WRITER = utils.Logger(os.path.join(result_dir, 'raw_ys'))
-        RAW_YHAT_WRITER.log('\n'.join(' '.join(str(x).decode('utf-8') for x in s) for s in raw_yhats),
-                            show_time=False)
-        RAW_Y_WRITER.log('\n'.join(' '.join(str(x).decode('utf-8') for x in s) for s in raw_ys),
-                         show_time=False)
+        # validation
+        i = 0.0
+        prog = Progbar(target=d.num_batches('val'))        
+        val_loss = 0.0
+        for batch in d.batch_iter(dataset='val'):
+            pred, loss = model.run_on_batch(*batch, learning_rate=lr)
+            val_loss += loss
+            i += 1.0
+            prog.update(i, [('val loss', loss)])
+#            break
+        val_loss /= (i or 1)
+        val_losses.append(val_loss)
 
-        yhats = [d.reconstruct_target(y) for y in raw_yhats]
-        ys = [d.reconstruct_target(y) for y in raw_ys]
-        YHAT_WRITER = utils.Logger(os.path.join(result_dir, 'yhats'))
-        Y_WRITER = utils.Logger(os.path.join(result_dir, 'ys'))
-        YHAT_WRITER.log('\n'.join(' '.join(x.decode('utf-8') for x in s) for s in yhats),
-                            show_time=False)
-        Y_WRITER.log('\n'.join(' '.join(x.decode('utf-8') for x in s) for s in ys),
-                         show_time=False)
+        if val_loss < best_valid_loss:
+            print 'INFO: new best validation loss!...'
+            best_valid_loss = val_loss
+            print 'INFO: generating plots...'
+            filename = fig_dir + '/%s-%s.png' % (c.attention, str(epoch))
+            lineplot(filename, 'Train/Val Losses', 'epoch', 'Loss', 
+                            [(train_losses, 'train'), (val_losses, 'val')])
+            print 'INFO: plot saved to %s' % filename
 
-        bleu, ribes = evaluate(ys, yhats)
-        print 'RESULT: final BLEU: ' + str(bleu)
-        print 'RESULT: final RIBES: ' + str(ribes)
-
-
-
-    print 'INFO: generating plots...'
-    filename = fig_dir + '/final_losses.png'
-    lineplot(filename, 'Train/Val Losses', 'epoch', 'Loss', 
-                    [(train_losses, 'train'), (val_losses, 'val')])
-    print 'INFO: plot saved to %s' % filename
+            print 'INFO: saving checkpoint...'
+            checkpoint_loc = checkpoint_dir + '/checkpoint-%s' % epoch
+            model.save(checkpoint_loc)
+            print 'INFO: checkpoint saved to %s' % (checkpoint_loc)
 
 
-    print '\n\nYOU DID IT!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n\n'
+        seconds = (time.time() - start)
+        seconds_per_batch = seconds / (d.num_batches('train') + d.num_batches('val'))
+        print 'INFO: epoch: ' + str(epoch)
+        print 'INFO: train loss: ' + str(train_loss)
+        print 'INFO: val loss: ' + str(val_loss)
+        print 'INFO: time: ' + str(seconds)
+        print 'INFO: seconds per batch: ' + str(seconds_per_batch)
+        print 'INFO: learning rate: ' + str(lr)
+
+
+
+
+
+
+tf.reset_default_graph()
+
+with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options, allow_soft_placement=True)) as sess:
+    print 'INFO: building test model...'
+    model = Seq2SeqV3(c, d, sess, testing=True)
+    #        model.load(filepath=cur_dir + '/saved_models/checkpoint-11-12936')
+    model.load(dir=checkpoint_dir)
+    print 'INFO: model loaded from %s' % checkpoint_dir
+
+    print 'TESTING...'
+    raw_yhats = []
+    raw_ys = []
+    i = 0
+    prog = Progbar(target=d.num_batches('test'))
+    for x_batch, x_lens, y_batch, _ in d.batch_iter(dataset='test'):
+        raw_ys += [y for y in y_batch]
+        yhat = model.predict_on_batch(x_batch, x_lens).tolist()
+        raw_yhats += [y for y  in yhat]
+        prog.update(i, [])
+        i += 1
+#        break
+
+    RAW_YHAT_WRITER = utils.Logger(os.path.join(result_dir, 'raw_yhats'))
+    RAW_Y_WRITER = utils.Logger(os.path.join(result_dir, 'raw_ys'))
+    RAW_YHAT_WRITER.log('\n'.join(' '.join(str(x).decode('utf-8') for x in s) for s in raw_yhats),
+                        show_time=False)
+    RAW_Y_WRITER.log('\n'.join(' '.join(str(x).decode('utf-8') for x in s) for s in raw_ys),
+                     show_time=False)
+
+    yhats = [d.reconstruct_target(y) for y in raw_yhats]
+    ys = [d.reconstruct_target(y) for y in raw_ys]
+    YHAT_WRITER = utils.Logger(os.path.join(result_dir, 'yhats'))
+    Y_WRITER = utils.Logger(os.path.join(result_dir, 'ys'))
+    YHAT_WRITER.log('\n'.join(' '.join(x.decode('utf-8') for x in s) for s in yhats),
+                        show_time=False)
+    Y_WRITER.log('\n'.join(' '.join(x.decode('utf-8') for x in s) for s in ys),
+                     show_time=False)
+
+    bleu, ribes = evaluate(ys, yhats)
+    print 'RESULT: final BLEU: ' + str(bleu)
+    print 'RESULT: final RIBES: ' + str(ribes)
+
+
+
+print 'INFO: generating plots...'
+filename = fig_dir + '/final_losses.png'
+lineplot(filename, 'Train/Val Losses', 'epoch', 'Loss', 
+                [(train_losses, 'train'), (val_losses, 'val')])
+print 'INFO: plot saved to %s' % filename
+
+
+print '\n\nYOU DID IT!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n\n'
