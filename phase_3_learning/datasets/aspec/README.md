@@ -1,4 +1,4 @@
-The actual data for these aspec datasets are here:
+The actual data for this corpus are here:
 
 * **raw aspec**: https://drive.google.com/open?id=0B6v0SLeq81aNRFhYTlE5Qy00R0E
 * **en tokenized**: https://drive.google.com/open?id=0B6v0SLeq81aNQkdqQ3NCR1E0NTQ
