@@ -15,8 +15,8 @@ import random
 
 max_source_len = 50
 max_target_len = 50
-N = 110000
-train_test_n = N / 25
+N = 1600000
+train_test_n = N / 50
 train_n = N - (train_test_n * 2)
 
 corpus = sys.argv[1]
