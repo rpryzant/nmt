@@ -1,0 +1,6 @@
+TODO -- though these train/test/dev splits say "100k" in their names, they're actually on the order of 1.6M. 
+
+I put 100k there because I had previously hardcoded the split filenames, and have a series of jobs
+   queued up that I don't want to kill. Sigh.
+
+TODO -- take out hardcoding!
