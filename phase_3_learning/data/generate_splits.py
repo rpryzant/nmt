@@ -15,9 +15,6 @@ import random
 
 max_source_len = 50
 max_target_len = 50
-N = 1600000
-train_test_n = N / 50
-train_n = N - (train_test_n * 2)
 
 corpus = sys.argv[1]
 
@@ -37,10 +34,14 @@ valid_indices = [i for i in range(len(lx)) if\
 # shuffle indices and select train/test/val splits
 random.shuffle(valid_indices)
 
-indices = valid_indices[:N]
+indices = valid_indices[:]
+
+N = len(indices)
+train_test_n = N / 100
+train_n = N - (train_test_n * 2)
+
 train = indices[:train_n]
 val = indices[train_n: train_n + train_test_n]
-
 test = indices[-train_test_n:]
 
 

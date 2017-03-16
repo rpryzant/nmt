@@ -25,8 +25,8 @@ from analysis.evaluation import *
 
 
 data_loc = sys.argv[1]
-job_id = sys.argv[2]
-model_path = sys.argv[3] if len(sys.argv) > 3 else None
+model_type = sys.argv[2]
+log_dir = sys.argv[3]
 
 
 
@@ -34,10 +34,8 @@ model_path = sys.argv[3] if len(sys.argv) > 3 else None
 c = Config()
 c.src_vocab_size = file_length(data_loc + c.x_vocab)    # TODO hacky...make better
 c.target_vocab_size = file_length(data_loc + c.y_vocab)
-if job_id == 'default_default':
+if model_type == 'default_default':
     c.network_type = 'default'
-else:
-    c.encoder_type = job_id
 
 
 
@@ -55,7 +53,7 @@ def make_dir(p):
     if not os.path.exists(p):
         os.mkdir(p)
 cur_dir = os.path.dirname(os.path.realpath(__file__)) + '/'
-run_dir = os.path.join(cur_dir, job_id)
+run_dir = os.path.join(cur_dir, log_dir)
 checkpoint_dir = os.path.join(run_dir, c.checkpoint_dir)
 fig_dir = os.path.join(run_dir, c.fig_dir)
 result_dir = os.path.join(run_dir, c.result_dir)
@@ -78,12 +76,12 @@ gpu_options = tf.GPUOptions(allow_growth=True)
 with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options, allow_soft_placement=True)) as sess:
     print 'INFO: building train model...'
     model = Seq2SeqV3(c, d, sess, testing=False)
-    if model_path is not None:
-        model.load(filepath=model_path)
-        print 'INFO: model loaded from %s' % model_path
-    else:
-        sess.run(tf.global_variables_initializer())
-        print 'INFO: model built'
+#    if model_path is not None:
+#        model.load(filepath=model_path)
+#        print 'INFO: model loaded from %s' % model_path
+#    else:
+    sess.run(tf.global_variables_initializer())
+    print 'INFO: model built'
 
     print 'INFO: training...'
     lr = c.learning_rate

@@ -24,7 +24,7 @@ class Config:
     encoder_type      = 'handmade_bidirectional'    # [default, bidirectional, handmade, handmade_bidirectional]
     decoder_type      = 'argmax'    # [default, argmax]    
 
-    epochs            = 14
+    epochs            = 12
     dropout_rate      = 0.2
     optimizer         ='Adam' #     # [SGD, Adam, Adagrad]
     learning_rate     = 0.0003    # [1.0 for sgd, 0.0003 for adam] work well
@@ -33,18 +33,15 @@ class Config:
     fig_dir           = 'figs'
     result_dir        = 'results'
 
-    x_corpus = 'corpus.en.cleaned.tok'
-    x_vocab = 'vocab.15k.en'
-    y_corpus = 'corpus.ja.cleaned.tok'
-    y_vocab = 'vocab.15k.ja'
 
-#    x_corpus = 'train.en'
-#    x_vocab = 'vocab.15k.en'
-#    y_corpus = 'train.ja'
-#    y_vocab = 'vocab.15k.vi'
-    train = 'train.100k'
-    test = 'test.100k'
-    val = 'val.100k'
+    x_corpus = 'en.tok'
+    x_vocab = '20k.en.vocab'
+    y_corpus = 'ja.tok'
+    y_vocab = '20k.ja.vocab'
+
+    train = 'train'
+    test = 'test'
+    val = 'val'
 
 
 def file_length(f):
