@@ -10,7 +10,7 @@ it as-is, the model will overfit on a subset of the provided data.
 
 === USAGE
 python python main.py datasets/ [job name] [OPTIONAL : checkpoint file]
-python main.py datasets/ test checkpoints_mine/checkpoint-11-12936
+python main.py datasets/ test checkpoints_mine/
 """
 import numpy as np
 from data.data_iterator import Dataset
@@ -27,8 +27,10 @@ from analysis.evaluation import *
 data_loc = sys.argv[1]
 model_type = sys.argv[2]
 log_dir = sys.argv[3]
-
-
+try:
+    checkpoint_dir = sys.argv[4]   # TODO argparse
+except:
+    checkpoint_dir = None
 
 
 c = Config()
@@ -76,11 +78,11 @@ gpu_options = tf.GPUOptions(allow_growth=True)
 with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options, allow_soft_placement=True)) as sess:
     print 'INFO: building train model...'
     model = Seq2SeqV3(c, d, sess, testing=False)
-#    if model_path is not None:
-#        model.load(filepath=model_path)
-#        print 'INFO: model loaded from %s' % model_path
-#    else:
-    sess.run(tf.global_variables_initializer())
+    if checkpoint_dir is not None:
+        model.load(dir=checkpoint_dir)
+        print 'INFO: model loaded from %s' % checkpoint_dir
+    else:
+        sess.run(tf.global_variables_initializer())
     print 'INFO: model built'
 
     print 'INFO: training...'
