@@ -58,6 +58,7 @@ class ArgmaxDecoder(GraphModule):
             s = self.cell.zero_state(self.batch_size, tf.float32)
             self.build_attention_vars()
 
+        self.attention_probs = []                 # for viz, gather attention probs
         logits = []
         for t in range(self.max_target_len):
             if t > 0: tf.get_variable_scope().reuse_variables()      # reuse variables after 1st iteration
@@ -72,8 +73,9 @@ class ArgmaxDecoder(GraphModule):
             h, s = self.cell(projection, s)                            # s is last encoder state when t == 0
 
             if not self.attention == 'off':
-                h = self.attention_layer(h, encoder_result)
+                h, a_t = self.attention_layer(h, encoder_result)
             
+            self.attention_probs.append(a_t)
             out_embedding = tf.matmul(h, self.out_embed_W) + self.out_embed_b  # project output to target embedding space
             logit = tf.matmul(out_embedding, self.out_W) + self.out_b 
             logits.append(logit)
@@ -126,7 +128,7 @@ class ArgmaxDecoder(GraphModule):
 
         # concat h_t and c_t, then send through fc layer to get final h
         h_new  = tf.tanh(tf.matmul(tf.concat(1, [h_t, c_t]), self.W_c) + self.b_c)
-        return h_new
+        return h_new, a_t
 
 
     def build_decoder_vars(self):

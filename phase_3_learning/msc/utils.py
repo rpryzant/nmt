@@ -7,6 +7,7 @@ import sys
 import time
 import datetime
 import codecs
+import prettyplotlib as ppl
 
 
 class Config:
@@ -15,7 +16,7 @@ class Config:
     max_source_len    = 50
     max_target_len    = 50
 
-    batch_size        = 128  
+    batch_size        = 4 #128  
     hidden_size       = 512
     embedding_size    = 256
     num_layers        = 2
@@ -24,7 +25,7 @@ class Config:
     encoder_type      = 'handmade_bidirectional'    # [default, bidirectional, handmade, handmade_bidirectional]
     decoder_type      = 'argmax'    # [default, argmax]    
 
-    epochs            = 12
+    epochs            = 1000#12
     dropout_rate      = 0.2
     optimizer         ='Adam' #     # [SGD, Adam, Adagrad]
     learning_rate     = 0.0003    # [1.0 for sgd, 0.0003 for adam] work well
@@ -34,14 +35,21 @@ class Config:
     result_dir        = 'results'
 
 
-    x_corpus = 'en.tok'
-    x_vocab = '20k.en.vocab'
-    y_corpus = 'ja.tok'
-    y_vocab = '20k.ja.vocab'
+    x_corpus = 'train.en'
+    x_vocab = 'vocab.15k.en'
+    y_corpus = 'train.vi'
+    y_vocab = 'vocab.15k.vi'
+    train = 'train.100k'
+    test = 'test.100k'
+    val = 'val.100k'
 
-    train = 'train'
-    test = 'test'
-    val = 'val'
+    # x_corpus = 'en.tok'
+    # x_vocab = '20k.en.vocab'
+    # y_corpus = 'ja.tok'
+    # y_vocab = '20k.ja.vocab'
+    # train = 'train'
+    # test = 'test'
+    # val = 'val'
 
 
 def file_length(f):
@@ -65,6 +73,14 @@ def lineplot(filename, title, xlab, ylab, curves):
     plt.savefig(filename)
     plt.close()
 
+
+def heatmap(filename, data):
+    """ data is np array with shape (y, x)
+    """
+
+    fig, ax = ppl.subplots(1)
+    ppl.pcolormesh(fig, ax, data, vmin=-0.0016, vmax=0.0016)
+    fig.savefig(filename + ".png")
 
 
 class Logger():

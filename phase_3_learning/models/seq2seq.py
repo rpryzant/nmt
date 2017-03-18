@@ -281,7 +281,7 @@ class Seq2SeqV3(object):
             runs a decoder on target and returns its predictions at each timestep
         """
         if self.decoder_type == 'argmax':
-            decoder = decoders.ArgmaxDecoder(cell,
+            self.decoder = decoders.ArgmaxDecoder(cell,
                                              self.embedding_size,
                                              self.hidden_size,
                                              self.target_vocab_size,
@@ -291,9 +291,8 @@ class Seq2SeqV3(object):
                                              self.testing,
                                              self.attention,
                                              self.encoder_type)
-        print encoder_result
         
-        logits = decoder(target, target_len, encoder_result)
+        logits = self.decoder(target, target_len, encoder_result)
         return logits
 
 
@@ -356,9 +355,31 @@ class Seq2SeqV3(object):
         return np.argmax(logits, axis=2)
 
 
+    def sample_attentional_scores(self, x_batch, x_lens):
+        """ get distribution of attention scores for each translated word
+
+            NOTE: only works if attention is handmade
+
+            returns:
+                tuple( [sequence], [ [dist for x1], [dist for x2], ...]  )
+        """
+        assert self.attention != 'off', 'attention must be turned on!'
+        logits, scores = self.sess.run([self.decoder_output, self.decoder.attention_probs], feed_dict={
+                                    self.source: x_batch,
+                                    self.source_len: x_lens,
+                                    self.dropout: 0.0,
+                                })
 
 
+        scores = np.squeeze(scores)  # squeeze out last dim (not needed)
+        scores = np.transpose(scores, [1, 0, 2])   # get into [batch, timestep, distribution] 
 
+        # cut out padding symbols and pair up sequencs with their distributions
+        out = []
+        for l, seq, dists in zip(x_lens, x_batch, scores):
+            out.append( (seq, dists) )
+
+        return out
 
 
 

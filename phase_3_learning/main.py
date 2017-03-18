@@ -42,6 +42,7 @@ def process_command_line():
 
   # optional arguments
   parser.add_argument('-c', '--checkpoint_dir', dest='checkpoint_dir', type=str, default=None, help='checkpoint dir to restore from')
+  parser.add_argument('-s','--sample_attention', dest='sampling', action='store_true', help='sample attentional scores')
 
   args = parser.parse_args()
   return args
@@ -55,24 +56,21 @@ def check_dir(ref_file):
 
 
 
-def main(data_loc, model_type, log_dir, checkpoint_dir):
-    print data_loc, model_type, log_dir, checkpoint_dir
+def train(data_loc, model_type, log_dir, checkpoint_dir):
+    # TODO: refactor this away
+    checkpoint_load_dir = checkpoint_dir
     c = Config()
     c.src_vocab_size = file_length(data_loc + c.x_vocab)    # TODO hacky...make better
     c.target_vocab_size = file_length(data_loc + c.y_vocab)
     if model_type == 'default_default':
         c.network_type = 'default'
 
-
-
     print 'INFO: building dataset...'
     d = Dataset(c, data_loc)
     i = 0
     print 'INFO: dataset built. Train size: ', d.get_size('train'), 'val size: ', d.get_size('val')
-    #d.subset(13)    # take only X sentances
-    #print 'INFO: subset built. Train size: ', d.train_N, 'val size: ', d.val_N
-
-
+#    d.subset(13)    # take only X sentances
+#    print 'INFO: subset built. Train size: ', d.train_N, 'val size: ', d.val_N
 
     print 'INFO: building run dir and logger...'
     def make_dir(p):
@@ -80,11 +78,11 @@ def main(data_loc, model_type, log_dir, checkpoint_dir):
             os.mkdir(p)
     cur_dir = os.path.dirname(os.path.realpath(__file__)) + '/'
     run_dir = os.path.join(cur_dir, log_dir)
-    checkpoint_dir = os.path.join(run_dir, c.checkpoint_dir)
+    checkpoint_save_dir = os.path.join(run_dir, c.checkpoint_dir)
     fig_dir = os.path.join(run_dir, c.fig_dir)
     result_dir = os.path.join(run_dir, c.result_dir)
     make_dir(run_dir)
-    make_dir(checkpoint_dir)
+    make_dir(checkpoint_save_dir)
     make_dir(fig_dir)
     make_dir(result_dir)
     LOGGER = utils.Logger(os.path.join(run_dir, 'log'))
@@ -93,18 +91,14 @@ def main(data_loc, model_type, log_dir, checkpoint_dir):
     print "INFO: i'll be shutting up now. Bye bye."
     print 'INFO: logs at %s' % os.path.join(result_dir, 'log')
 
-
     os.environ['CUDA_VISIBLE_DEVICES'] = '0' # Or whichever device you would like to use
     gpu_options = tf.GPUOptions(allow_growth=True)
-
-
-
     with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options, allow_soft_placement=True)) as sess:
         print 'INFO: building train model...'
         model = Seq2SeqV3(c, d, sess, testing=False)
-        if checkpoint_dir is not None:
-            model.load(dir=checkpoint_dir)
-            print 'INFO: model loaded from %s' % checkpoint_dir
+        if checkpoint_load_dir is not None:
+            model.load(dir=checkpoint_load_dir)
+            print 'INFO: model loaded from %s' % checkpoint_load_dir
         else:
             sess.run(tf.global_variables_initializer())
         print 'INFO: model built'
@@ -130,7 +124,7 @@ def main(data_loc, model_type, log_dir, checkpoint_dir):
                 i += 1.0
                 prog.update(i, [('train loss', loss)])
                 train_loss += loss
-    #            break
+#                break
             train_loss /= (i or 1)
             train_losses.append(train_loss)
 
@@ -143,7 +137,7 @@ def main(data_loc, model_type, log_dir, checkpoint_dir):
                 val_loss += loss
                 i += 1.0
                 prog.update(i, [('val loss', loss)])
-    #            break
+#                break
             val_loss /= (i or 1)
             val_losses.append(val_loss)
 
@@ -157,10 +151,9 @@ def main(data_loc, model_type, log_dir, checkpoint_dir):
                 print 'INFO: plot saved to %s' % filename
 
                 print 'INFO: saving checkpoint...'
-                checkpoint_loc = checkpoint_dir + '/checkpoint-%s' % epoch
+                checkpoint_loc = checkpoint_save_dir + '/checkpoint-%s' % epoch
                 model.save(checkpoint_loc)
                 print 'INFO: checkpoint saved to %s' % (checkpoint_loc)
-
 
             seconds = (time.time() - start)
             seconds_per_batch = seconds / (d.num_batches('train') + d.num_batches('val'))
@@ -171,6 +164,10 @@ def main(data_loc, model_type, log_dir, checkpoint_dir):
             print 'INFO: seconds per batch: ' + str(seconds_per_batch)
             print 'INFO: learning rate: ' + str(lr)
 
+        # print 'INFO: saving checkpoint...'
+        # checkpoint_loc = checkpoint_save_dir + '/checkpoint-%s' % epoch
+        # model.save(checkpoint_loc)
+        # print 'INFO: checkpoint saved to %s' % (checkpoint_loc)
 
 
 
@@ -229,9 +226,51 @@ def main(data_loc, model_type, log_dir, checkpoint_dir):
 
     print '\n\nYOU DID IT!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n\n'
 
+
+def sample_attention(data_loc, model_type, log_dir, checkpoint_dir):
+    # EXPERIMENTS/2_VI/handmade_bidirectional/checkpoints/
+    print 'INFO: sampling'
+
+
+    c = Config()
+    c.src_vocab_size = file_length(data_loc + c.x_vocab)    # TODO hacky...make better
+    c.target_vocab_size = file_length(data_loc + c.y_vocab)
+    if model_type == 'default_default':
+        c.network_type = 'default'
+
+    print 'INFO: building dataset...'
+    d = Dataset(c, data_loc)
+    i = 0
+    print 'INFO: dataset built. Train size: ', d.get_size('train'), 'val size: ', d.get_size('val')
+
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0' # Or whichever device you would like to use
+    gpu_options = tf.GPUOptions(allow_growth=True)
+    with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options, allow_soft_placement=True)) as sess:
+        print 'INFO: building test model...'
+        model = Seq2SeqV3(c, d, sess, testing=True)
+        if checkpoint_dir is not None:
+            model.load(dir=checkpoint_dir)
+            print 'INFO: model loaded from %s' % checkpoint_dir
+        else:
+            sess.run(tf.global_variables_initializer())
+        print 'INFO: model built'
+
+        x_batch, x_lens, y_batch, y_lens = next(d.batch_iter(dataset='train'))
+
+        out = model.predict_on_batch(x_batch, x_lens)
+        scores = model.sample_attentional_scores(x_batch, x_lens)
+        print 'yhat: ', out[0]
+        print 'y: ', y_batch[0]
+        seq, dists = scores[0]
+        utils.heatmap('test_heatmap', dists)
+
+
 if __name__ == '__main__':
-  args = process_command_line()
-  main(args.data_loc, args.model_type, args.log_dir, args.checkpoint_dir)
+    args = process_command_line()
+    if args.sampling:
+        sample_attention(args.data_loc, args.model_type, args.log_dir, args.checkpoint_dir)
+    else:
+        train(args.data_loc, args.model_type, args.log_dir, args.checkpoint_dir)
 
 
 
