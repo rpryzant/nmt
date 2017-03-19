@@ -11,45 +11,48 @@ import prettyplotlib as ppl
 
 
 class Config:
-    src_vocab_size    = -1   # unk, pad, start, end
-    target_vocab_size = -1
-    max_source_len    = 50
-    max_target_len    = 50
+    def __init__(self, data_loc):
+        self.batch_size        = 128  
+        self.hidden_size       = 512
+        self.embedding_size    = 256
+        self.num_layers        = 2
+        self.network_type      = 'custom'   # [default, custom]   # if default, use tf.contrib.legacy_seq2seq.embedding_attention_seq2seq
+        self.attention         = 'bilinear'       # accepted values: [off, dot, bilinear]
+        self.encoder_type      = 'handmade_bidirectional'    # [default, bidirectional, handmade, handmade_bidirectional]
+        self.decoder_type      = 'argmax'    # [default, argmax]    
 
-    batch_size        = 4 #128  
-    hidden_size       = 512
-    embedding_size    = 256
-    num_layers        = 2
-    network_type      = 'custom'   # [default, custom]   # if default, use tf.contrib.legacy_seq2seq.embedding_attention_seq2seq
-    attention         = 'bilinear'       # accepted values: [off, dot, bilinear]
-    encoder_type      = 'handmade_bidirectional'    # [default, bidirectional, handmade, handmade_bidirectional]
-    decoder_type      = 'argmax'    # [default, argmax]    
-
-    epochs            = 1000#12
-    dropout_rate      = 0.2
-    optimizer         ='Adam' #     # [SGD, Adam, Adagrad]
-    learning_rate     = 0.0003    # [1.0 for sgd, 0.0003 for adam] work well
-    max_grad_norm     = 5.0
-    checkpoint_dir    = 'checkpoints'
-    fig_dir           = 'figs'
-    result_dir        = 'results'
+        self.epochs            = 1000#12
+        self.dropout_rate      = 0.2
+        self.optimizer         ='Adam' #     # [SGD, Adam, Adagrad]
+        self.learning_rate     = 0.0003    # [1.0 for sgd, 0.0003 for adam] work well
+        self.max_grad_norm     = 5.0
+        self.checkpoint_dir    = 'checkpoints'
+        self.fig_dir           = 'figs'
+        self.result_dir        = 'results'
 
 
-    x_corpus = 'train.en'
-    x_vocab = 'vocab.15k.en'
-    y_corpus = 'train.vi'
-    y_vocab = 'vocab.15k.vi'
-    train = 'train.100k'
-    test = 'test.100k'
-    val = 'val.100k'
+        # x_corpus = 'train.en'
+        # x_vocab = 'vocab.15k.en'
+        # y_corpus = 'train.vi'
+        # y_vocab = 'vocab.15k.vi'
+        # train = 'train.100k'
+        # test = 'test.100k'
+        # val = 'val.100k'
 
-    # x_corpus = 'en.tok'
-    # x_vocab = '20k.en.vocab'
-    # y_corpus = 'ja.tok'
-    # y_vocab = '20k.ja.vocab'
-    # train = 'train'
-    # test = 'test'
-    # val = 'val'
+        self.x_corpus = 'en.tok'
+        self.x_vocab = '20k.en.vocab'
+        self.y_corpus = 'ja.tok'
+        self.y_vocab = '20k.ja.vocab'
+        self.train = 'train'
+        self.test = 'test'
+        self.val = 'val'
+
+        self.src_vocab_size    = file_length(os.path.join(data_loc, self.x_vocab))
+        self.target_vocab_size = file_length(os.path.join(data_loc, self.y_vocab))
+        self.max_source_len    = 50
+        self.max_target_len    = 50
+
+
 
 
 def file_length(f):

@@ -13,7 +13,7 @@ python python main.py datasets/ [job name] [OPTIONAL : checkpoint file]
 python main.py datasets/ test checkpoints_mine/
 """
 usage = 'USAGE DESCRIPTION.'
-
+from termcolor import colored
 import numpy as np
 from data.data_iterator import Dataset
 from models.seq2seq import Seq2SeqV3
@@ -43,6 +43,8 @@ def process_command_line():
   # optional arguments
   parser.add_argument('-c', '--checkpoint_dir', dest='checkpoint_dir', type=str, default=None, help='checkpoint dir to restore from')
   parser.add_argument('-s','--sample_attention', dest='sampling', action='store_true', help='sample attentional scores')
+  parser.add_argument('-i','--interactive', dest='interactive', action='store_true', help='launch model in interactive mode')
+
 
   args = parser.parse_args()
   return args
@@ -57,11 +59,8 @@ def check_dir(ref_file):
 
 
 def train(data_loc, model_type, log_dir, checkpoint_dir):
-    # TODO: refactor this away
     checkpoint_load_dir = checkpoint_dir
-    c = Config()
-    c.src_vocab_size = file_length(data_loc + c.x_vocab)    # TODO hacky...make better
-    c.target_vocab_size = file_length(data_loc + c.y_vocab)
+    c = Config(data_loc)
     if model_type == 'default_default':
         c.network_type = 'default'
 
@@ -228,19 +227,14 @@ def train(data_loc, model_type, log_dir, checkpoint_dir):
 
 
 def sample_attention(data_loc, model_type, log_dir, checkpoint_dir):
-    # EXPERIMENTS/2_VI/handmade_bidirectional/checkpoints/
     print 'INFO: sampling'
 
-
-    c = Config()
-    c.src_vocab_size = file_length(data_loc + c.x_vocab)    # TODO hacky...make better
-    c.target_vocab_size = file_length(data_loc + c.y_vocab)
+    c = Config(data_loc)
     if model_type == 'default_default':
         c.network_type = 'default'
 
     print 'INFO: building dataset...'
     d = Dataset(c, data_loc)
-    i = 0
     print 'INFO: dataset built. Train size: ', d.get_size('train'), 'val size: ', d.get_size('val')
 
     os.environ['CUDA_VISIBLE_DEVICES'] = '0' # Or whichever device you would like to use
@@ -259,16 +253,66 @@ def sample_attention(data_loc, model_type, log_dir, checkpoint_dir):
 
         out = model.predict_on_batch(x_batch, x_lens)
         scores = model.sample_attentional_scores(x_batch, x_lens)
-        print 'yhat: ', out[0]
+        print 'yhat: ', list(out[0])
         print 'y: ', y_batch[0]
         seq, dists = scores[0]
+        print 'INFO: saving heatmap as "test_heatmap.png"' 
         utils.heatmap('test_heatmap', dists)
+        print 'INFO: done. you did it!!!!!!!!!!!!'
 
+
+def shell(data_loc, model_type, log_dir, checkpoint_dir):
+    """
+    shell for interactive translation
+    REPL: read, evaluate, print, loop
+    """
+    print 'INFO: building config...'
+    c = Config(data_loc)
+    if model_type == 'default_default':
+        c.network_type = 'default'
+    c.batch_size = 4
+    print 'INFO: config done...'
+
+    print 'INFO: building dataset...'
+    d = Dataset(c, data_loc)
+    print 'INFO: dataset built.'
+
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0' # Or whichever device you would like to use
+    gpu_options = tf.GPUOptions(allow_growth=True)
+    with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options, allow_soft_placement=True)) as sess:
+        print 'INFO: building test model...'
+        model = Seq2SeqV3(c, d, sess, testing=True)
+        if checkpoint_dir is not None:
+            model.load(dir=checkpoint_dir)
+            print 'INFO: model loaded from %s' % checkpoint_dir
+        else:
+            sess.run(tf.global_variables_initializer())
+        print 'SUCESS: model built'
+
+        while True:
+            sys.stdout.write('>> ')
+            line = sys.stdin.readline().strip()
+            if not line:
+                break
+
+            line = line.split()
+            x = d.prep_sentence(line)
+            l = np.count_nonzero(x)
+            # because I can't do batch sizes of 1 (TODO - figure out why?)
+            x_batch = [x for _ in range(c.batch_size)]
+            x_lens = [l for _ in range(c.batch_size)]
+            out = model.predict_on_batch(x_batch, x_lens)
+            scores = model.sample_attentional_scores(x_batch, x_lens)
+#            print list(out)[0]
+#            print d.reconstruct_target(list(out)[0])
+            print colored(' '.join(x for x in d.reconstruct_target(list(out)[0])), 'green')
 
 if __name__ == '__main__':
     args = process_command_line()
     if args.sampling:
         sample_attention(args.data_loc, args.model_type, args.log_dir, args.checkpoint_dir)
+    elif args.interactive:
+        shell(args.data_loc, args.model_type, args.log_dir, args.checkpoint_dir)
     else:
         train(args.data_loc, args.model_type, args.log_dir, args.checkpoint_dir)
 

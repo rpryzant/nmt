@@ -160,6 +160,7 @@ class Seq2SeqV3(object):
             ckpt = tf.train.get_checkpoint_state(dir)
             if ckpt and ckpt.model_checkpoint_path:
                 self.saver.restore(self.sess, ckpt.model_checkpoint_path)
+                print '\t SUCESS: model restored from %s' % ckpt.model_checkpoint_path
             else:
                 raise Exception("\t No checkpoint found")
         elif filepath is not None:
